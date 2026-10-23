@@ -1,0 +1,68 @@
+@page "/policies"
+@using Insurance.Contracts.Policies
+@using Insurance.Contracts.Security
+@using Insurance.UI.BlazorWasm.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject PoliciesService PoliciesApi
+
+<PageTitle>Policies</PageTitle>
+<h1>Policies</h1>
+
+@if (rows is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Number</th>
+                <th>Holder</th>
+                <th>Product</th>
+                <th>Premium</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in rows)
+            {
+                <tr>
+                    <td>@row.PolicyNumber</td>
+                    <td>@row.HolderName</td>
+                    <td>@row.ProductName</td>
+                    <td>@row.Premium.ToString("N2")</td>
+                    <td>@row.Status</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<AuthorizeView Policy="@PermissionKeys.PoliciesCreate">
+    <h3 class="mt-4">Create policy</h3>
+    <div class="row g-2">
+        <div class="col"><input class="form-control" placeholder="Policy number" @bind="create.PolicyNumber" /></div>
+        <div class="col"><input class="form-control" placeholder="Holder" @bind="create.HolderName" /></div>
+        <div class="col"><input class="form-control" placeholder="Product" @bind="create.ProductName" /></div>
+        <div class="col"><input class="form-control" type="number" @bind="create.Premium" /></div>
+        <div class="col-auto"><button class="btn btn-primary" @onclick="Create">Save</button></div>
+    </div>
+</AuthorizeView>
+
+@code {
+    private InsurancePolicyDto[]? rows;
+    private UpsertPolicyRequest create = new();
+
+    protected override async Task OnInitializedAsync() => rows = await PoliciesApi.GetAsync() ?? [];
+
+    private async Task Create()
+    {
+        if (await PoliciesApi.CreateAsync(create))
+        {
+            create = new UpsertPolicyRequest();
+            rows = await PoliciesApi.GetAsync() ?? [];
+        }
+    }
+}

@@ -1,0 +1,15 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+
+<PageTitle>Dashboard</PageTitle>
+<h1>Dashboard</h1>
+<AuthorizeView>
+    <Authorized>
+        <p>Signed in as <strong>@context.User.Identity?.Name</strong>.</p>
+        <p>Roles: @string.Join(", ", context.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value))</p>
+        <AuthorizeView Roles="Admin" Context="adminAuth">
+            <div class="alert alert-info">Admin menus and approve/delete actions are visible because this user has the Admin role. APIs still enforce permissions.</div>
+        </AuthorizeView>
+    </Authorized>
+</AuthorizeView>

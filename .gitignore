@@ -1,0 +1,31 @@
+## Build
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+TestResults/
+*.dll
+*.pdb
+*.exe
+*.cache
+
+## Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.slnLaunch.user
+
+## NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+## Secrets / local
+appsettings.*.local.json
+*.pfx
+.env
+secrets.json

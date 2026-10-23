@@ -1,0 +1,82 @@
+@page "/claims"
+@using Insurance.Contracts.Claims
+@using Insurance.Contracts.Security
+@using Insurance.UI.BlazorWasm.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject ClaimsService ClaimsApi
+
+<PageTitle>Claims</PageTitle>
+<h1>Claims</h1>
+<p class="text-muted">GET /api/claims through the BFF. Cookie stays on the BFF. The BFF sends a bearer JWT to Ocelot.</p>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="alert alert-warning">@message</div>
+}
+
+@if (rows is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Number</th>
+                <th>Policy</th>
+                <th>Claimant</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in rows)
+            {
+                <tr>
+                    <td>@row.ClaimNumber</td>
+                    <td>@row.PolicyNumber</td>
+                    <td>@row.ClaimantName</td>
+                    <td>@row.Amount.ToString("N2")</td>
+                    <td>@row.Status</td>
+                    <td>
+                        <AuthorizeView Policy="@PermissionKeys.ClaimsApprove" Context="approveAuth">
+                            @if (row.Status == "Open")
+                            {
+                                <button class="btn btn-sm btn-success" @onclick="() => Approve(row.ClaimId)">Approve</button>
+                            }
+                        </AuthorizeView>
+                        <AuthorizeView Policy="@PermissionKeys.ClaimsDelete" Context="deleteAuth">
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => Delete(row.ClaimId)">Delete</button>
+                        </AuthorizeView>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private InsuranceClaimDto[]? rows;
+    private string? message;
+
+    protected override async Task OnInitializedAsync() => rows = await ClaimsApi.GetAsync() ?? [];
+
+    private async Task Approve(int id)
+    {
+        message = null;
+        if (!await ClaimsApi.ApproveAsync(id))
+            message = "The API rejected the approval. The button hide is not security.";
+        rows = await ClaimsApi.GetAsync() ?? [];
+    }
+
+    private async Task Delete(int id)
+    {
+        message = null;
+        if (!await ClaimsApi.DeleteAsync(id))
+            message = "The API rejected the delete.";
+        rows = await ClaimsApi.GetAsync() ?? [];
+    }
+}

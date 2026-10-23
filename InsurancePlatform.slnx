@@ -1,0 +1,11 @@
+<Solution>
+  <Project Path="Authentication.Bff.Api/Authentication.Bff.Api.csproj" />
+  <Project Path="Billing.Api/Billing.Api.csproj" />
+  <Project Path="Claims.Api/Claims.Api.csproj" />
+  <Project Path="Insurance.Contracts/Insurance.Contracts.csproj" />
+  <Project Path="Insurance.Helpers/Insurance.Helpers.csproj" />
+  <Project Path="Insurance.Tests/Insurance.Tests.csproj" />
+  <Project Path="Insurance.UI.BlazorWasm/Insurance.UI.BlazorWasm.csproj" />
+  <Project Path="Ocelot.Gateway/Ocelot.Gateway.csproj" />
+  <Project Path="Policies.Api/Policies.Api.csproj" />
+</Solution>
