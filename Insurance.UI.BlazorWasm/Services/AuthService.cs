@@ -15,6 +15,7 @@ public sealed class AuthService
         if (!response.IsSuccessStatusCode)
             return null;
         //Added comments to create pull request
+        // One more comments
         return await response.Content.ReadFromJsonAsync<SessionUserDto>();
     }
 
