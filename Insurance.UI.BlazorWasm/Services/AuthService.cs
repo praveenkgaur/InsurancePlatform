@@ -14,6 +14,7 @@ public sealed class AuthService
         var response = await _http.PostAsJsonAsync("auth/login", new LoginRequest { UserName = userName, Password = password });
         if (!response.IsSuccessStatusCode)
             return null;
+        //Added comments to create pull request
         return await response.Content.ReadFromJsonAsync<SessionUserDto>();
     }
 
