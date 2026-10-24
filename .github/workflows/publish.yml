@@ -1,0 +1,32 @@
+name: Publish
+
+on:
+  workflow_run:
+    workflows: [ "CI" ]
+    types: [ completed ]
+    branches: [ main ]
+
+jobs:
+  publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish APIs and UI
+        run: |
+          dotnet publish Authentication.Bff.Api/Authentication.Bff.Api.csproj -c Release -o artifacts/bff
+          dotnet publish Ocelot.Gateway/Ocelot.Gateway.csproj -c Release -o artifacts/gateway
+          dotnet publish Claims.Api/Claims.Api.csproj -c Release -o artifacts/claims
+          dotnet publish Policies.Api/Policies.Api.csproj -c Release -o artifacts/policies
+          dotnet publish Billing.Api/Billing.Api.csproj -c Release -o artifacts/billing
+          dotnet publish Insurance.UI.BlazorWasm/Insurance.UI.BlazorWasm.csproj -c Release -o artifacts/ui
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insurance-platform
+          path: artifacts
