@@ -20,6 +20,19 @@ public sealed class ClaimsController : ControllerBase
     [Authorize(Policy = PermissionKeys.ClaimsView)]
     public Task<IReadOnlyList<InsuranceClaimDto>> Get() => _claims.GetAllAsync();
 
+    [HttpPost]
+    [Authorize(Policy = PermissionKeys.ClaimsView)]
+    public async Task<ActionResult<InsuranceClaimDto>> Create([FromBody] CreateClaimRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.PolicyNumber) || request.Amount <= 0)
+            return BadRequest(new ApiMessage { Message = "Policy number and a positive amount are required." });
+        if (request.ClaimantId is null && string.IsNullOrWhiteSpace(request.ClaimantName))
+            return BadRequest(new ApiMessage { Message = "Select a claimant or enter a claimant name." });
+
+        var created = await _claims.CreateAsync(request);
+        return Ok(created);
+    }
+
     [HttpPost("{claimId:int}/approve")]
     [Authorize(Policy = PermissionKeys.ClaimsApprove)]
     public async Task<ActionResult<InsuranceClaimDto>> Approve(int claimId, [FromBody] ApproveClaimRequest? request)
