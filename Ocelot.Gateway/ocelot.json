@@ -21,6 +21,26 @@
       }
     },
     {
+      "DownstreamPathTemplate": "/api/claimants/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 5283 }],
+      "UpstreamPathTemplate": "/api/claimants/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/claimants",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 5283 }],
+      "UpstreamPathTemplate": "/api/claimants",
+      "UpstreamHttpMethod": [ "GET", "POST" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
       "DownstreamPathTemplate": "/api/policies/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 5284 }],

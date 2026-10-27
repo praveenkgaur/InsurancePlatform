@@ -1,0 +1,41 @@
+﻿@page "/notifications"
+@using Insurance.Contracts.Notifications
+@using Insurance.UI.BlazorWasm.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@implements IDisposable
+@inject NotificationHubClient Hub
+
+<PageTitle>Notifications</PageTitle>
+<h1>Notifications</h1>
+<p>Live push from BFF hub. Groups: your user + your roles (Admin / ClaimsAdjuster).</p>
+<p class="text-muted">These are not REST calls. In DevTools open Network → WS (or Socket), then the <code>/hubs/notifications</code> connection.</p>
+
+@if (Hub.NotificationItems.Count == 0)
+{
+    <p>No events yet. Approve a claim on another browser while this page is open.</p>
+}
+else
+{
+    <ul>
+        @foreach (var n in Hub.NotificationItems)
+        {
+            <li>
+                <strong>@n.EventType</strong> @n.Message
+                <span class="text-muted">@n.OccurredUtc.ToLocalTime()</span>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Hub.NotificationReceived += OnReceived;
+        await Hub.StartAsync();
+    }
+
+    private void OnReceived(InsuranceNotificationDto _) => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Hub.NotificationReceived -= OnReceived;
+}

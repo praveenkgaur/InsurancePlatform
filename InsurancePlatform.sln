@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.10.12306.391 oobstable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Insurance.Contracts", "Insurance.Contracts\Insurance.Contracts.csproj", "{E6927833-2D3A-4776-B017-4E20332924BB}"
 EndProject

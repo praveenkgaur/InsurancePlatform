@@ -22,4 +22,23 @@ public sealed class ClaimsService
         var response = await _http.DeleteAsync($"api/claims/{claimId}");
         return response.IsSuccessStatusCode;
     }
+
+    public async Task<(bool Ok, string Error)> CreateAsync(CreateClaimRequest request)
+    {
+        var response = await _http.PostAsJsonAsync("api/claims", request);
+        return response.IsSuccessStatusCode
+            ? (true, "")
+            : (false, await response.Content.ReadAsStringAsync());
+    }
+
+    public Task<InsuranceClaimantDto[]?> GetClaimantsAsync() =>
+        _http.GetFromJsonAsync<InsuranceClaimantDto[]>("api/claimants");
+
+    public async Task<(bool Ok, string Error)> CreateClaimantAsync(CreateClaimantRequest request)
+    {
+        var response = await _http.PostAsJsonAsync("api/claimants", request);
+        return response.IsSuccessStatusCode
+            ? (true, "")
+            : (false, await response.Content.ReadAsStringAsync());
+    }
 }

@@ -1,0 +1,99 @@
+@page "/claims/new"
+@using Insurance.Contracts.Claims
+@using Insurance.Contracts.Policies
+@using Insurance.UI.BlazorWasm.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject ClaimsService ClaimsApi
+@inject PoliciesService PoliciesApi
+@inject NavigationManager Navigation
+
+<PageTitle>Add claim</PageTitle>
+<h1>Add claim</h1>
+<p class="text-muted">Inserts an Open claim so you can approve it and see a SignalR notification.</p>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="alert @(saved ? "alert-success" : "alert-warning")">@message</div>
+}
+
+<div class="row g-3" style="max-width: 640px;">
+    <div class="col-12">
+        <label class="form-label">Claim number (optional)</label>
+        <input class="form-control" placeholder="Leave blank to auto-generate" @bind="form.ClaimNumber" />
+    </div>
+    <div class="col-12">
+        <label class="form-label">Policy</label>
+        <select class="form-select" @bind="form.PolicyNumber">
+            <option value="">Select a policy</option>
+            @if (policies is not null)
+            {
+                @foreach (var policy in policies)
+                {
+                    <option value="@policy.PolicyNumber">@policy.PolicyNumber — @policy.HolderName</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="col-12">
+        <label class="form-label">Claimant</label>
+        <select class="form-select" @bind="selectedClaimantId">
+            <option value="0">Select a claimant</option>
+            @if (claimants is not null)
+            {
+                @foreach (var claimant in claimants)
+                {
+                    <option value="@claimant.ClaimantId">@claimant.FullName</option>
+                }
+            }
+        </select>
+        <div class="form-text"><a href="claimants/new">Add a claimant</a> if the list is empty.</div>
+    </div>
+    <div class="col-12">
+        <label class="form-label">Amount</label>
+        <input class="form-control" type="number" step="0.01" @bind="form.Amount" />
+    </div>
+    <div class="col-12">
+        <button class="btn btn-primary" @onclick="Save" disabled="@busy">Save claim</button>
+        <a class="btn btn-outline-secondary" href="claims">Back to claims</a>
+    </div>
+</div>
+
+@code {
+    private CreateClaimRequest form = new();
+    private InsurancePolicyDto[]? policies;
+    private InsuranceClaimantDto[]? claimants;
+    private int selectedClaimantId;
+    private string? message;
+    private bool saved;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        policies = await PoliciesApi.GetAsync() ?? [];
+        claimants = await ClaimsApi.GetClaimantsAsync() ?? [];
+    }
+
+    private async Task Save()
+    {
+        message = null;
+        saved = false;
+        form.ClaimantId = selectedClaimantId == 0 ? null : selectedClaimantId;
+        if (string.IsNullOrWhiteSpace(form.PolicyNumber) || form.Amount <= 0 || form.ClaimantId is null)
+        {
+            message = "Select a policy, a claimant, and enter a positive amount.";
+            return;
+        }
+
+        busy = true;
+        var (ok, error) = await ClaimsApi.CreateAsync(form);
+        busy = false;
+        if (!ok)
+        {
+            message = string.IsNullOrWhiteSpace(error) ? "Save failed." : error;
+            return;
+        }
+
+        Navigation.NavigateTo("claims");
+    }
+}

@@ -1,5 +1,8 @@
+using Authentication.Bff.Api.Auth;
+using Authentication.Bff.Api.Hubs;
 using Authentication.Bff.Api.Services;
 using Insurance.Helpers;
+using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddInsuranceData(builder.Configuration);
@@ -7,6 +10,10 @@ builder.Services.AddInsuranceJwt(builder.Configuration);
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<SessionService>();
 builder.Services.AddScoped<LoginService>();
+builder.Services.AddSignalR();
+builder.Services.AddScoped<NotificationPublisher>();
+builder.Services.AddAuthentication(SessionCookieAuthHandler.SchemeName).AddScheme<AuthenticationSchemeOptions, SessionCookieAuthHandler>(SessionCookieAuthHandler.SchemeName, _ => { });
+builder.Services.AddAuthorization();
 builder.Services.AddHttpClient("Gateway", client => client.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddControllers();
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
@@ -20,4 +27,6 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<InsuranceClaimHub>("/hubs/notifications").RequireAuthorization();
 app.Run();
+

@@ -1,0 +1,41 @@
+name: Deploy DEV
+
+on:
+  push:
+    branches:
+      - SP01.01.00.00
+
+jobs:
+  build-test-publish-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore InsurancePlatform.sln
+
+      - name: Build
+        run: dotnet build InsurancePlatform.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Insurance.Tests/Insurance.Tests.csproj --configuration Release --no-build
+
+      - name: Publish DEV packages
+        run: |
+          dotnet publish Authentication.Bff.Api/Authentication.Bff.Api.csproj -c Release -o artifacts/bff
+          dotnet publish Ocelot.Gateway/Ocelot.Gateway.csproj -c Release -o artifacts/gateway
+          dotnet publish Claims.Api/Claims.Api.csproj -c Release -o artifacts/claims
+          dotnet publish Policies.Api/Policies.Api.csproj -c Release -o artifacts/policies
+          dotnet publish Billing.Api/Billing.Api.csproj -c Release -o artifacts/billing
+          dotnet publish Insurance.UI.BlazorWasm/Insurance.UI.BlazorWasm.csproj -c Release -o artifacts/ui
+
+      - name: Upload DEV artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: insurance-platform-dev
+          path: artifacts

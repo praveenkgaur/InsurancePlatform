@@ -1,0 +1,102 @@
+@page "/claimants/new"
+@page "/claimants"
+@using Insurance.Contracts.Claims
+@using Insurance.UI.BlazorWasm.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject ClaimsService ClaimsApi
+
+<PageTitle>Add claimant</PageTitle>
+<h1>Add claimant</h1>
+<p class="text-muted">Creates a row in dbo.InsuranceClaimants so you can attach it when adding a claim.</p>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="alert @(saved ? "alert-success" : "alert-warning")">@message</div>
+}
+
+<div class="row g-2 mb-4" style="max-width: 720px;">
+    <div class="col-md-4">
+        <input class="form-control" placeholder="Full name" @bind="form.FullName" />
+    </div>
+    <div class="col-md-4">
+        <input class="form-control" placeholder="Email" @bind="form.Email" />
+    </div>
+    <div class="col-md-3">
+        <input class="form-control" placeholder="Phone" @bind="form.Phone" />
+    </div>
+    <div class="col-md-auto">
+        <button class="btn btn-primary" @onclick="Save" disabled="@busy">Save claimant</button>
+    </div>
+</div>
+
+<h2>Existing claimants</h2>
+@if (rows is null)
+{
+    <p>Loading...</p>
+}
+else if (rows.Length == 0)
+{
+    <p>No claimants yet.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in rows)
+            {
+                <tr>
+                    <td>@row.ClaimantId</td>
+                    <td>@row.FullName</td>
+                    <td>@row.Email</td>
+                    <td>@row.Phone</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private InsuranceClaimantDto[]? rows;
+    private CreateClaimantRequest form = new();
+    private string? message;
+    private bool saved;
+    private bool busy;
+
+    protected override Task OnInitializedAsync() => Load();
+
+    private async Task Load() => rows = await ClaimsApi.GetClaimantsAsync() ?? [];
+
+    private async Task Save()
+    {
+        message = null;
+        saved = false;
+        if (string.IsNullOrWhiteSpace(form.FullName))
+        {
+            message = "Full name is required.";
+            return;
+        }
+
+        busy = true;
+        var (ok, error) = await ClaimsApi.CreateClaimantAsync(form);
+        busy = false;
+        if (!ok)
+        {
+            message = string.IsNullOrWhiteSpace(error) ? "Save failed." : error;
+            return;
+        }
+
+        saved = true;
+        message = $"Saved {form.FullName}.";
+        form = new CreateClaimantRequest();
+        await Load();
+    }
+}
