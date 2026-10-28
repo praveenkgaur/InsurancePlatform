@@ -11,8 +11,14 @@ namespace Authentication.Bff.Api.Controllers;
 public sealed class AuthController : ControllerBase
 {
     private readonly LoginService _login;
-
-    public AuthController(LoginService login) => _login = login;
+    private readonly TokenService _tokens;
+    private readonly IConfiguration _config;
+    public AuthController(LoginService login, TokenService tokens, IConfiguration config)
+    {
+        _login = login;
+        _tokens = tokens;
+        _config = config;
+    }
 
     [HttpPost("login")]
     public async Task<ActionResult<SessionUserDto>> Login([FromBody] LoginRequest request)
@@ -24,6 +30,33 @@ public sealed class AuthController : ControllerBase
         AppendSessionCookie(result.Value.SessionId, result.Value.RawToken);
         return Ok(result.Value.User);
     }
+
+
+    [HttpGet("signalr-token")]
+    public async Task<ActionResult<SignalRTokenResponse>> SignalRToken()
+    {
+        if (!_config.GetValue("SignalR:UseAzure", false))
+            return NotFound(new ApiMessage { Message = "Azure SignalR is off (SignalR:UseAzure)." });
+
+        if (!TryReadSession(out var sessionId, out var rawToken))
+            return Unauthorized();
+
+        var user = await _login.GetCurrentAsync(sessionId, rawToken);
+        if (user is null)
+            return Unauthorized();
+
+        var minutes = _config.GetValue("Jwt:SignalRTokenMinutes", 5);
+        if (minutes <= 0)
+            minutes = 5;
+
+        var jwt = _tokens.CreateSignalRToken(user.UserName, user.Roles, user.Permissions);
+        return Ok(new SignalRTokenResponse
+        {
+            AccessToken = jwt,
+            ExpiresInSeconds = minutes * 60
+        });
+    }
+
 
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()

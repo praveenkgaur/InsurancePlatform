@@ -5,37 +5,111 @@
 @attribute [Authorize]
 @implements IDisposable
 @inject NotificationHubClient Hub
+@inject NotificationApi NoticeApi
 
 <PageTitle>Notifications</PageTitle>
-<h1>Notifications</h1>
-<p>Live push from BFF hub. Groups: your user + your roles (Admin / ClaimsAdjuster).</p>
-<p class="text-muted">These are not REST calls. In DevTools open Network → WS (or Socket), then the <code>/hubs/notifications</code> connection.</p>
+<div class="notice-hero">
+    <div>
+        <h1>Notifications</h1>
+        <p>Live events from claims, claimants, and policies. Preview is limited to @NotificationEvents.PreviewLength characters until you choose Read.</p>
+    </div>
+</div>
 
-@if (Hub.NotificationItems.Count == 0)
+@if (rows is null)
 {
-    <p>No events yet. Approve a claim on another browser while this page is open.</p>
+    <p>Loading...</p>
+}
+else if (rows.Count == 0)
+{
+    <div class="empty-panel">No active notifications. Approve a claim or add a policy, claim, or claimant.</div>
 }
 else
 {
-    <ul>
-        @foreach (var n in Hub.NotificationItems)
+    <div class="notice-list">
+        @foreach (var n in rows)
         {
-            <li>
-                <strong>@n.EventType</strong> @n.Message
-                <span class="text-muted">@n.OccurredUtc.ToLocalTime()</span>
-            </li>
+            var expanded = expandedIds.Contains(n.NotificationId);
+            var menuOpen = menuId == n.NotificationId;
+            <article class="notice-card @(n.IsRead ? "is-read" : "is-unread")">
+                <div class="notice-main">
+                    <div class="notice-kicker">
+                        <span class="pill">@n.EventType</span>
+                        @if (!n.IsRead)
+                        {
+                            <span class="dot">Unread</span>
+                        }
+                        <span class="when">@n.OccurredUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</span>
+                    </div>
+                    <h2>@n.Title</h2>
+                    <p>@(expanded ? n.Message : Preview(n.Message))</p>
+                </div>
+                <div class="notice-tools">
+                    <button type="button" class="dots" title="Actions" @onclick="() => ToggleMenu(n.NotificationId)">⋯</button>
+                    @if (menuOpen)
+                    {
+                        <div class="dots-menu">
+                            <button type="button" @onclick="() => Read(n)">Read</button>
+                            <button type="button" class="danger" @onclick="() => Delete(n.NotificationId)">Delete</button>
+                        </div>
+                    }
+                </div>
+            </article>
         }
-    </ul>
+    </div>
 }
 
 @code {
+    private List<InsuranceNotificationDto>? rows;
+    private readonly HashSet<int> expandedIds = [];
+    private int? menuId;
+
     protected override async Task OnInitializedAsync()
     {
         Hub.NotificationReceived += OnReceived;
         await Hub.StartAsync();
+        await Reload();
     }
 
-    private void OnReceived(InsuranceNotificationDto _) => InvokeAsync(StateHasChanged);
+    private async void OnReceived(InsuranceNotificationDto _)
+    {
+        await Reload();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Reload()
+    {
+        var data = await NoticeApi.GetAsync() ?? [];
+        rows = data.OrderByDescending(r => r.OccurredUtc).ToList();
+    }
+
+    private void ToggleMenu(int id) => menuId = menuId == id ? null : id;
+
+    private async Task Read(InsuranceNotificationDto n)
+    {
+        menuId = null;
+        expandedIds.Add(n.NotificationId);
+        if (!n.IsRead && await NoticeApi.MarkReadAsync(n.NotificationId))
+            n.IsRead = true;
+    }
+
+    private async Task Delete(int id)
+    {
+        menuId = null;
+        if (await NoticeApi.SoftDeleteAsync(id))
+        {
+            rows?.RemoveAll(r => r.NotificationId == id);
+            expandedIds.Remove(id);
+        }
+    }
+
+    private static string Preview(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return "";
+        return message.Length <= NotificationEvents.PreviewLength
+            ? message
+            : message[..NotificationEvents.PreviewLength] + "…";
+    }
 
     public void Dispose() => Hub.NotificationReceived -= OnReceived;
 }

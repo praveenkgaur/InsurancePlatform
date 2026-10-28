@@ -1,5 +1,14 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
 @using Microsoft.AspNetCore.Components.Authorization
+@using Insurance.Contracts.Notifications
+@using Insurance.UI.BlazorWasm.Authentication
+@using Insurance.UI.BlazorWasm.Services
+@inject AuthenticationStateProvider AuthState
+@inject AuthService Auth
+@inject NavigationManager Navigation
+@inject NotificationHubClient Hub
+@inject NotificationApi NoticeApi
 
 <div class="page">
     <div class="sidebar">
@@ -9,7 +18,30 @@
         <div class="top-row px-4">
             <AuthorizeView>
                 <Authorized>
-                    <span>@context.User.Identity?.Name</span>
+                    <div class="header-actions">
+                        <button type="button" class="bell-btn" title="Unread notifications" @onclick="ToggleShutter">
+                            <span class="bell-glyph" aria-hidden="true">🔔</span>
+                            @if (unreadCount > 0)
+                            {
+                                <span class="bell-badge">@(unreadCount > 99 ? "99+" : unreadCount.ToString())</span>
+                            }
+                        </button>
+                        <div class="user-menu">
+                            <button type="button" class="user-chip" @onclick="ToggleUserMenu">
+                                <span class="user-avatar">@Initials(context.User.Identity?.Name)</span>
+                                <span class="user-name">@context.User.Identity?.Name</span>
+                            </button>
+                            @if (userMenuOpen)
+                            {
+                                <div class="user-drop">
+                                    <button type="button" class="power-btn" @onclick="Logout">
+                                        <span class="power-glyph" aria-hidden="true">⏻</span>
+                                        Sign out
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
                 </Authorized>
             </AuthorizeView>
         </div>
@@ -18,3 +50,132 @@
         </article>
     </main>
 </div>
+
+@if (shutterOpen)
+{
+    <div class="shutter-backdrop" @onclick="CloseShutter"></div>
+    <aside class="shutter @(shutterOpen ? "open" : null)" @onclick:stopPropagation="true">
+        <div class="shutter-head">
+            <div>
+                <h2>Notifications</h2>
+                <p>Unread, newest first</p>
+            </div>
+            <button type="button" class="shutter-close" @onclick="CloseShutter">✕</button>
+        </div>
+        <div class="shutter-body">
+            @if (unread.Count == 0)
+            {
+                <p class="empty">No unread notifications.</p>
+            }
+            else
+            {
+                @foreach (var n in unread)
+                {
+                    <div class="shutter-card">
+                        <div class="shutter-card-top">
+                            <strong>@n.Title</strong>
+                            <span class="when">@n.OccurredUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>
+                        </div>
+                        <p>@Preview(n.Message)</p>
+                        <div class="shutter-actions">
+                            <button type="button" class="link-btn" @onclick="() => ReadFromShutter(n)">Read</button>
+                            <button type="button" class="link-btn danger" @onclick="() => DeleteFromShutter(n.NotificationId)">Delete</button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+        <div class="shutter-foot">
+            <a href="notifications" @onclick="CloseShutter">Open notification centre</a>
+        </div>
+    </aside>
+}
+
+@code {
+    private bool userMenuOpen;
+    private bool shutterOpen;
+    private int unreadCount;
+    private List<InsuranceNotificationDto> unread = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Hub.NotificationReceived += OnHub;
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+            return;
+        await Hub.StartAsync();
+        await RefreshUnread();
+    }
+
+    private async void OnHub(InsuranceNotificationDto _)
+    {
+        await RefreshUnread();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshUnread()
+    {
+        var rows = await NoticeApi.GetUnreadAsync() ?? [];
+        unread = rows.OrderByDescending(r => r.OccurredUtc).ToList();
+        unreadCount = unread.Count;
+    }
+
+    private void ToggleUserMenu()
+    {
+        userMenuOpen = !userMenuOpen;
+        shutterOpen = false;
+    }
+
+    private async Task ToggleShutter()
+    {
+        userMenuOpen = false;
+        shutterOpen = !shutterOpen;
+        if (shutterOpen)
+            await RefreshUnread();
+    }
+
+    private void CloseShutter() => shutterOpen = false;
+
+    private async Task ReadFromShutter(InsuranceNotificationDto n)
+    {
+        if (await NoticeApi.MarkReadAsync(n.NotificationId))
+        {
+            Navigation.NavigateTo("notifications");
+            shutterOpen = false;
+            await RefreshUnread();
+        }
+    }
+
+    private async Task DeleteFromShutter(int id)
+    {
+        if (await NoticeApi.SoftDeleteAsync(id))
+            await RefreshUnread();
+    }
+
+    private async Task Logout()
+    {
+        userMenuOpen = false;
+        await Auth.LogoutAsync();
+        ((ApiAuthenticationStateProvider)AuthState).NotifySignedOut();
+        Navigation.NavigateTo("/login");
+    }
+
+    private static string Preview(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return "";
+        return message.Length <= NotificationEvents.PreviewLength
+            ? message
+            : message[..NotificationEvents.PreviewLength] + "…";
+    }
+
+    private static string Initials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "?";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 1 ? parts[0][..1].ToUpperInvariant() : $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant();
+    }
+
+    public void Dispose() => Hub.NotificationReceived -= OnHub;
+}

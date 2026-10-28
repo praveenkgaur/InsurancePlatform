@@ -9,7 +9,20 @@ public sealed class PoliciesService
 
     public PoliciesService(HttpClient http) => _http = http;
 
-    public Task<InsurancePolicyDto[]?> GetAsync() => _http.GetFromJsonAsync<InsurancePolicyDto[]>("api/policies");
+    public async Task<InsurancePolicyDto[]?> GetAsync()
+    {
+        try
+        {
+            var response = await _http.GetAsync("api/policies");
+            if (!response.IsSuccessStatusCode)
+                return [];
+            return await response.Content.ReadFromJsonAsync<InsurancePolicyDto[]>() ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            return [];
+        }
+    }
 
     public async Task<bool> CreateAsync(UpsertPolicyRequest request)
     {

@@ -9,7 +9,7 @@ public sealed class ClaimsService
 
     public ClaimsService(HttpClient http) => _http = http;
 
-    public Task<InsuranceClaimDto[]?> GetAsync() => _http.GetFromJsonAsync<InsuranceClaimDto[]>("api/claims");
+    public Task<InsuranceClaimDto[]?> GetAsync() => GetArrayAsync<InsuranceClaimDto>("api/claims");
 
     public async Task<bool> ApproveAsync(int claimId)
     {
@@ -31,8 +31,22 @@ public sealed class ClaimsService
             : (false, await response.Content.ReadAsStringAsync());
     }
 
-    public Task<InsuranceClaimantDto[]?> GetClaimantsAsync() =>
-        _http.GetFromJsonAsync<InsuranceClaimantDto[]>("api/claimants");
+    public Task<InsuranceClaimantDto[]?> GetClaimantsAsync() => GetArrayAsync<InsuranceClaimantDto>("api/claimants");
+
+    private async Task<T[]?> GetArrayAsync<T>(string url)
+    {
+        try
+        {
+            var response = await _http.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+                return [];
+            return await response.Content.ReadFromJsonAsync<T[]>() ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            return [];
+        }
+    }
 
     public async Task<(bool Ok, string Error)> CreateClaimantAsync(CreateClaimantRequest request)
     {

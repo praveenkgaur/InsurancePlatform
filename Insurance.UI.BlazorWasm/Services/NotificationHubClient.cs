@@ -1,6 +1,9 @@
 ﻿using Insurance.Contracts.Notifications;
 using Microsoft.AspNetCore.Components.WebAssembly.Http;
 using Microsoft.AspNetCore.SignalR.Client;
+using System.Net.Http.Json;
+using Insurance.Contracts.Auth;
+
 
 namespace Insurance.UI.BlazorWasm.Services
 {
@@ -8,9 +11,14 @@ namespace Insurance.UI.BlazorWasm.Services
     {
         private readonly IConfiguration _config;
         private HubConnection _hubConnection;
+        private readonly HttpClient _http;
 
         public List<InsuranceNotificationDto> NotificationItems { get; } = [];
-        public NotificationHubClient(IConfiguration config) => _config = config;
+        public NotificationHubClient(IConfiguration config, HttpClient http) 
+        {
+            _config = config;
+            _http = http;
+        }
         public event Action<InsuranceNotificationDto> NotificationReceived;
         public async Task StartAsync()
         {
@@ -24,7 +32,15 @@ namespace Insurance.UI.BlazorWasm.Services
                 .WithUrl(url, options =>
                 {
                     options.HttpMessageHandlerFactory = inner => new CookieSendingHandler { InnerHandler = inner };
-                    //options.HttpMessageHandlerFactory = inner =>   new CookieSendingHandler { InnerHandler = inner };
+
+                    if (_config.GetValue("SignalR:UseAzure", false))
+                    {
+                        options.AccessTokenProvider = async () =>
+                        {
+                            var token = await _http.GetFromJsonAsync<SignalRTokenResponse>("auth/signalr-token");
+                            return token?.AccessToken;
+                        };
+                    }
                 }).WithAutomaticReconnect()
             .Build();
 
@@ -36,8 +52,18 @@ namespace Insurance.UI.BlazorWasm.Services
                 NotificationReceived?.Invoke(dto);
             });
 
-            await _hubConnection.StartAsync();
-
+            try
+            {
+                await _hubConnection.StartAsync();
+            }
+            catch (HttpRequestException)
+            {
+                // No session cookie yet (login page). Hub requires authorization.
+            }
+            catch (Exception)
+            {
+                // Negotiate 401 / policy block — do not crash the login UI.
+            }
         }
 
         public async ValueTask DisposeAsync()
