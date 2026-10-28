@@ -929,3 +929,25 @@ Later, move role lists to `appsettings`:
 **A.** Not until that API has users/roles. Implement **here** first. Clinic can join the **generic** Notifications.Api later via `POST /internal/publish`.
 
 Copy files in this order. If a step fails (401 on hub, CORS, empty group), say which step number and the error.
+
+---
+
+## Full concept (negotiate, uid, groups, role-wise send)
+
+Same write-up as the end of `Mdfiles\Notification.UI.And.Inbox.Changes.md` (section **Full SignalR concept**).
+
+**Corrections to the usual mental model**
+
+- Groups are **sets of connection ids**. Each logged-in tab is one socket that **joins** `user:{name}` and `role:{role}`.
+- `ws://...?id=` is a **connection token**, not UserId and not the role. Cookie authenticates; uid only binds the socket to negotiate.
+- The **browser** POSTs negotiate (from `MainLayout.StartAsync`). The BFF does not start that request.
+- Publish uses `Clients.Group("role:Admin")` / `Clients.User("Praveen")`, not “send to this uid”.
+- Live SignalR is role-filtered; SQL `/auth/notifications` is not filtered by role yet.
+
+---
+
+## Later — Azure SignalR (do not do this on one local BFF)
+
+When you run **more than one** BFF instance, in-memory sockets do not cross processes. Migrate using **`Mdfiles\Azure.SignalR.Migration.md`** (API + UI paste code, what concept changes, order: resource → `AddAzureSignalR` → `GET /auth/signalr-token` + WASM `AccessTokenProvider` → prove 1 BFF then 2).
+
+Hub class, groups, and `PublishAsync` stay. Cookie no longer rides the WebSocket (Azure host). Negotiate still hits the BFF.

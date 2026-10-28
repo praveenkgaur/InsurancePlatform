@@ -9,16 +9,18 @@ main {
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    background: linear-gradient(180deg, #0b1220 0%, #111827 55%, #1e1b4b 100%);
 }
 
 .top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
+    background-color: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
     justify-content: flex-end;
     height: 3.5rem;
     display: flex;
     align-items: center;
+    position: relative;
+    z-index: 20;
 }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
@@ -75,3 +77,165 @@ main {
         padding-right: 1.5rem !important;
     }
 }
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: auto;
+}
+
+.bell-btn, .user-chip, .power-btn, .shutter-close, .link-btn {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.bell-btn {
+    position: relative;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 999px;
+    background: #f1f5f9;
+}
+
+.bell-glyph { font-size: 1.05rem; }
+
+.bell-badge {
+    position: absolute;
+    top: -0.15rem;
+    right: -0.15rem;
+    min-width: 1.05rem;
+    height: 1.05rem;
+    padding: 0 0.28rem;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-menu { position: relative; }
+
+.user-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.2rem 0.55rem 0.2rem 0.2rem;
+    border-radius: 999px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.user-avatar {
+    width: 1.85rem;
+    height: 1.85rem;
+    border-radius: 999px;
+    background: #1e3a8a;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-name { font-size: 0.88rem; font-weight: 600; color: #0f172a; }
+
+.user-drop {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.4rem);
+    min-width: 10.5rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.7rem;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+    padding: 0.4rem;
+    z-index: 40;
+}
+
+.power-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.5rem;
+    color: #b91c1c;
+    font-weight: 600;
+}
+
+.power-btn:hover { background: #fef2f2; }
+.power-glyph { font-size: 1.1rem; }
+
+.shutter-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.28);
+    z-index: 80;
+}
+
+.shutter {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: min(26rem, 92vw);
+    background: #fff;
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -12px 0 40px rgba(15, 23, 42, 0.18);
+    transform: translateX(100%);
+    animation: shutter-in 0.28s ease forwards;
+}
+
+@keyframes shutter-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+.shutter-head, .shutter-foot {
+    padding: 1rem 1.15rem;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.shutter-foot {
+    border-bottom: 0;
+    border-top: 1px solid #e2e8f0;
+}
+
+.shutter-head h2 { margin: 0; font-size: 1.05rem; }
+.shutter-head p { margin: 0.15rem 0 0; color: #64748b; font-size: 0.8rem; }
+.shutter-body { flex: 1; overflow-y: auto; padding: 0.85rem; }
+.empty { color: #64748b; padding: 1.5rem 0.5rem; }
+
+.shutter-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.7rem;
+    padding: 0.8rem;
+    margin-bottom: 0.7rem;
+    background: #f8fafc;
+}
+
+.shutter-card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+}
+
+.shutter-card-top .when { color: #64748b; font-size: 0.75rem; white-space: nowrap; }
+.shutter-card p { margin: 0 0 0.55rem; font-size: 0.88rem; color: #334155; }
+.shutter-actions { display: flex; gap: 0.7rem; }
+.link-btn { color: #1d4ed8; font-weight: 600; font-size: 0.82rem; padding: 0; }
+.link-btn.danger { color: #b91c1c; }
+.shutter-foot a { font-size: 0.85rem; font-weight: 600; }
+

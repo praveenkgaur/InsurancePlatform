@@ -1,14 +1,10 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
-@using Insurance.UI.BlazorWasm.Authentication
-@using Insurance.UI.BlazorWasm.Services
-@inject AuthenticationStateProvider AuthState
-@inject AuthService Auth
-@inject NavigationManager Navigation
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">Insurance Platform</a>
-    </div>
+<div class="brand-row">
+    <a class="navbar-brand" href="">
+        <span class="brand-mark">IP</span>
+        <span class="brand-text">Insurance<br />Platform</span>
+    </a>
 </div>
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
@@ -17,35 +13,52 @@
     <nav class="nav flex-column">
         <AuthorizeView>
             <Authorized>
+                <div class="nav-section">Overview</div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Dashboard</NavLink>
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                        <span class="nav-ico" aria-hidden="true">⌂</span> Dashboard
+                    </NavLink>
+                </div>
+
+                <div class="nav-section">Work</div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="claims" Match="NavLinkMatch.All">
+                        <span class="nav-ico" aria-hidden="true">▣</span> Claims
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3 nested">
+                    <NavLink class="nav-link" href="claims/new">
+                        <span class="nav-ico" aria-hidden="true">＋</span> Add claim
+                    </NavLink>
                 </div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="claims" Match="NavLinkMatch.All">Claims</NavLink>
+                    <NavLink class="nav-link" href="claimants" Match="NavLinkMatch.All">
+                        <span class="nav-ico" aria-hidden="true">◉</span> Claimants
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3 nested">
+                    <NavLink class="nav-link" href="claimants/new">
+                        <span class="nav-ico" aria-hidden="true">＋</span> Add claimant
+                    </NavLink>
                 </div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="claims/new">Add claim</NavLink>
+                    <NavLink class="nav-link" href="policies">
+                        <span class="nav-ico" aria-hidden="true">▤</span> Policies
+                    </NavLink>
                 </div>
+
+                <div class="nav-section">Alerts</div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="claimants" Match="NavLinkMatch.All">Claimants</NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="claimants/new">Add claimant</NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="policies">Policies</NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="notifications">Notifications</NavLink>
+                    <NavLink class="nav-link" href="notifications">
+                        <span class="nav-ico" aria-hidden="true">◉</span> Notifications
+                    </NavLink>
                 </div>
                 <AuthorizeView Roles="Admin" Context="adminAuth">
+                    <div class="nav-section">Admin</div>
                     <div class="nav-item px-3">
-                        <span class="nav-link">Admin</span>
+                        <span class="nav-link muted">Administrator</span>
                     </div>
                 </AuthorizeView>
-                <div class="nav-item px-3">
-                    <button class="nav-link btn btn-link" @onclick="Logout">Sign out</button>
-                </div>
             </Authorized>
             <NotAuthorized>
                 <div class="nav-item px-3">
@@ -55,12 +68,3 @@
         </AuthorizeView>
     </nav>
 </div>
-
-@code {
-    private async Task Logout()
-    {
-        await Auth.LogoutAsync();
-        ((ApiAuthenticationStateProvider)AuthState).NotifySignedOut();
-        Navigation.NavigateTo("/login");
-    }
-}

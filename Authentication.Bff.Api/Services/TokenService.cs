@@ -12,4 +12,6 @@ public sealed class TokenService
         _factory.CreateAccessToken(userName, roles, permissions);
 
     public string CreateRefreshToken() => TokenHash.NewOpaqueToken();
+    public string CreateSignalRToken(string userName, IEnumerable<string> roles, IEnumerable<string> permissions) =>
+    _factory.CreateSignalRToken(userName, roles, permissions);
 }
