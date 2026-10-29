@@ -15,6 +15,11 @@ builder.Services.AddScoped<NotificationPublisher>();
 builder.Services.AddAuthentication(SessionCookieAuthHandler.SchemeName).AddScheme<AuthenticationSchemeOptions, SessionCookieAuthHandler>(SessionCookieAuthHandler.SchemeName, _ => { });
 builder.Services.AddAuthorization();
 builder.Services.AddHttpClient("Gateway", client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient("AgentClaims");
+builder.Services.AddHttpClient("AgentPolicies");
+builder.Services.AddHttpClient("AgentPython");
+builder.Services.AddScoped<Authentication.Bff.Api.Agent.AgentChatService>();
+
 builder.Services.AddControllers();
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
     policy.WithOrigins(builder.Configuration["UiOrigin"] ?? "http://localhost:5280")
