@@ -7,6 +7,7 @@ namespace Authentication.Bff.Api.Controllers;
 
 [ApiController]
 [Route("api")]
+[ApiExplorerSettings(IgnoreApi = true)]
 public sealed class BffProxyController : ControllerBase
 {
     private readonly LoginService _login;

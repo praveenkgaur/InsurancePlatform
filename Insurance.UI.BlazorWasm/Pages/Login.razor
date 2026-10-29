@@ -40,10 +40,10 @@
     private async Task Submit()
     {
         error = null;
-        var user = await Auth.LoginAsync(userName, password);
+        var (user, loginError) = await Auth.LoginAsync(userName, password);
         if (user is null)
         {
-            error = "Invalid user name or password.";
+            error = loginError ?? "Invalid user name or password.";
             return;
         }
         ((ApiAuthenticationStateProvider)AuthState).NotifySignedIn(user);

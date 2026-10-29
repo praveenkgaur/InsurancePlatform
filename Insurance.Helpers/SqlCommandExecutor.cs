@@ -7,7 +7,13 @@ public sealed class SqlCommandExecutor
 {
     private readonly string _connectionString;
 
-    public SqlCommandExecutor(string connectionString) => _connectionString = connectionString;
+    public SqlCommandExecutor(string connectionString)
+    {
+        var builder = new SqlConnectionStringBuilder(connectionString);
+        if (builder.ConnectTimeout < 60)
+            builder.ConnectTimeout = 60;
+        _connectionString = builder.ConnectionString;
+    }
 
     public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? parameters = null)
     {

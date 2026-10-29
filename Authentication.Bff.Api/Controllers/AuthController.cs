@@ -2,6 +2,7 @@ using Insurance.Contracts.Auth;
 using Insurance.Contracts.Common;
 using Insurance.Helpers;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Authentication.Bff.Api.Services;
 
 namespace Authentication.Bff.Api.Controllers;
@@ -23,12 +24,22 @@ public sealed class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<ActionResult<SessionUserDto>> Login([FromBody] LoginRequest request)
     {
-        var result = await _login.SignInAsync(request);
-        if (result is null)
-            return Unauthorized(new ApiMessage { Message = "Invalid user name or password." });
+        try
+        {
+            var result = await _login.SignInAsync(request);
+            if (result is null)
+                return Unauthorized(new ApiMessage { Message = "Invalid user name or password." });
 
-        AppendSessionCookie(result.Value.SessionId, result.Value.RawToken);
-        return Ok(result.Value.User);
+            AppendSessionCookie(result.Value.SessionId, result.Value.RawToken);
+            return Ok(result.Value.User);
+        }
+        catch (SqlException ex)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new ApiMessage
+            {
+                Message = $"Database unavailable (SQL {ex.Number}). Set BFF connection string DemoDataBase, allow Azure SQL firewall, and run Sql/001–004."
+            });
+        }
     }
 
 

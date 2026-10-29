@@ -22,6 +22,7 @@ builder.Services.AddHttpClient("AgentPython");
 builder.Services.AddScoped<Authentication.Bff.Api.Agent.AgentChatService>();
 
 builder.Services.AddControllers();
+builder.Services.AddInsuranceSwagger("Insurance BFF");
 var uiOrigin = (builder.Configuration["UiOrigin"] ?? "http://localhost:5280").Trim().TrimEnd('/');
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
     policy.SetIsOriginAllowed(origin => CorsOriginRules.IsAllowed(origin, uiOrigin))
@@ -32,6 +33,7 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 var app = builder.Build();
 app.UseBffCorsHeaders(uiOrigin);
 app.UseCors();
+app.UseInsuranceSwagger();
 app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 app.UseAuthentication();
