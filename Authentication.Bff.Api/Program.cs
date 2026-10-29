@@ -1,3 +1,4 @@
+using Authentication.Bff.Api;
 using Authentication.Bff.Api.Auth;
 using Authentication.Bff.Api.Hubs;
 using Authentication.Bff.Api.Services;
@@ -23,23 +24,20 @@ builder.Services.AddScoped<Authentication.Bff.Api.Agent.AgentChatService>();
 builder.Services.AddControllers();
 var uiOrigin = (builder.Configuration["UiOrigin"] ?? "http://localhost:5280").Trim().TrimEnd('/');
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
-    policy.SetIsOriginAllowed(origin =>
-        {
-            if (string.IsNullOrWhiteSpace(origin))
-                return false;
-            var o = origin.Trim().TrimEnd('/');
-            return string.Equals(o, uiOrigin, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(o, "http://localhost:5280", StringComparison.OrdinalIgnoreCase);
-        })
+    policy.SetIsOriginAllowed(origin => CorsOriginRules.IsAllowed(origin, uiOrigin))
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials()));
 
 var app = builder.Build();
+app.UseBffCorsHeaders(uiOrigin);
 app.UseCors();
+app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<InsuranceClaimHub>("/hubs/notifications").RequireAuthorization();
+app.MapFallbackToFile("index.html");
 app.Run();
 

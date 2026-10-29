@@ -73,14 +73,27 @@ public sealed class AuthController : ControllerBase
         Response.Cookies.Append(CookieSettings.Name(Request.IsHttps), value, CookieOptions());
     }
 
-    private CookieOptions CookieOptions() => new()
+    private CookieOptions CookieOptions()
     {
-        HttpOnly = true,
-        Secure = Request.IsHttps,
-        SameSite = Request.IsHttps ? SameSiteMode.None : SameSiteMode.Lax,
-        Path = "/",
-        Expires = DateTimeOffset.UtcNow.AddHours(8)
-    };
+        var crossSite = IsCrossSiteRequest();
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = Request.IsHttps && crossSite ? SameSiteMode.None : SameSiteMode.Lax,
+            Path = "/",
+            Expires = DateTimeOffset.UtcNow.AddHours(8)
+        };
+    }
+
+    private bool IsCrossSiteRequest()
+    {
+        if (!Request.Headers.TryGetValue("Origin", out var origin) || string.IsNullOrWhiteSpace(origin))
+            return false;
+        if (!Uri.TryCreate(origin.ToString(), UriKind.Absolute, out var originUri))
+            return false;
+        return !string.Equals(originUri.Host, Request.Host.Host, StringComparison.OrdinalIgnoreCase);
+    }
 
     private bool TryReadSession(out Guid sessionId, out string rawToken)
     {

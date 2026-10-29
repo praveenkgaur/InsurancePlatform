@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.13" />
     <PackageReference Include="Microsoft.Azure.SignalR" Version="1.33.1" />
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.81.0" />
   </ItemGroup>
@@ -15,6 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Insurance.Contracts\Insurance.Contracts.csproj" />
     <ProjectReference Include="..\Insurance.Helpers\Insurance.Helpers.csproj" />
+    <ProjectReference Include="..\Insurance.UI.BlazorWasm\Insurance.UI.BlazorWasm.csproj" />
   </ItemGroup>
 
 </Project>
