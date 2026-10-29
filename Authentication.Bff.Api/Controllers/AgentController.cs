@@ -39,7 +39,7 @@ namespace Authentication.Bff.Api.Controllers
             if (string.IsNullOrWhiteSpace(accessToken))
                 return Unauthorized();
 
-            var result = await _agent.ChatAsync(request.Message, accessToken, cancellationToken);
+            var result = await _agent.ChatAsync(request, accessToken, cancellationToken);
             return Ok(result);
         }
 

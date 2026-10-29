@@ -8,9 +8,13 @@ namespace Insurance.UI.BlazorWasm.Services
         private readonly HttpClient _http;
         public AgentApi(HttpClient http) => _http = http;
 
-        public async Task<AgentChatResponse> ChatAsync(string message)
+        public async Task<AgentChatResponse> ChatAsync(string message, IReadOnlyList<AgentChatTurn>? history = null)
         {
-            var response = await _http.PostAsJsonAsync("api/agent/chat", new AgentChatRequest { Message = message });
+            var response = await _http.PostAsJsonAsync("api/agent/chat", new AgentChatRequest
+            {
+                Message = message,
+                History = history?.ToList() ?? []
+            });
 
             if (!response.IsSuccessStatusCode)
                 return new AgentChatResponse { Reply = $"HTTP {(int)response.StatusCode} {await response.Content.ReadAsStringAsync()}" };

@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Re-apply after the Web/Wasm SDK, which can turn the apphost back on. -->
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+</Project>

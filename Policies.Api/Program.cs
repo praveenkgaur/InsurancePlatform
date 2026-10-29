@@ -1,6 +1,8 @@
 using Insurance.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
+if (builder.Environment.IsDevelopment())
+    builder.WebHost.UseUrls("http://localhost:5284");
 builder.Services.AddInsuranceData(builder.Configuration);
 builder.Services.AddInsuranceJwt(builder.Configuration);
 builder.Services.AddControllers();

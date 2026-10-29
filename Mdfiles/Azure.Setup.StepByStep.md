@@ -54,6 +54,38 @@ Demo login (from `Sql/002_SeedUsers.sql`): **`Praveen` / `Password@123`**. Adjus
 
 ---
 
+## Local vs Azure (they must not mix)
+
+ASP.NET loads: `appsettings.json` → `appsettings.{Environment}.json` → User Secrets (local only) → Environment variables (Azure App settings win).
+
+| | Local F5 | Azure App Service |
+| --- | --- | --- |
+| Environment | **Development** (`launchSettings.json`) | **Production** |
+| SQL | LocalDB `DemoDataBase` in `appsettings.Development.json` | Connection string **DemoDataBase** on each API |
+| Downstream | `http://localhost:5283/5284/5285` | long `*.southindia-01.azurewebsites.net` hosts |
+| UI | `http://localhost:5280` → BFF `http://localhost:5281` | **pk-ins-ui** Default domain → BFF Default domain |
+| Semantic Kernel | `Agent:UseSemanticKernel` **true** in Development.json; keys in **User Secrets** | **false** in Production.json unless you set Azure App settings |
+| Secrets | `dotnet user-secrets` on BFF (not git) | Azure App settings / Key Vault (not git) |
+
+Do **not** put Azure URLs or Azure SQL in `appsettings.Development.json`.  
+Do **not** put localhost in Azure App settings.  
+Do **not** set `ASPNETCORE_ENVIRONMENT=Production` on local F5.
+
+Local SK keys (BFF project folder):
+
+```bat
+cd Authentication.Bff.Api
+dotnet user-secrets set "Agent:AzureOpenAI:Endpoint" "https://YOUR-RESOURCE.openai.azure.com/"
+dotnet user-secrets set "Agent:AzureOpenAI:ApiKey" "YOUR-KEY"
+dotnet user-secrets set "Agent:AzureOpenAI:Deployment" "YOUR-DEPLOYMENT-NAME"
+```
+
+Those secrets never go to Azure. To turn SK **on** in Azure later, set `Agent__UseSemanticKernel` and `Agent__AzureOpenAI__*` on **pk-ins-bff** only — that does not change local User Secrets.
+
+If `dotnet user-secrets list` still shows `Downstream__Claims` with an Azure host, remove it (`dotnet user-secrets remove "Downstream:Claims"`) or local F5 will call Azure.
+
+---
+
 ## Where each setting goes
 
 Azure **Environment variables** override published `appsettings.Production.json`.

@@ -1,27 +1,26 @@
 ﻿using System.ComponentModel;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 using Insurance.Contracts.Policies;
+using Insurance.Helpers;
 using Microsoft.SemanticKernel;
 
 namespace Authentication.Bff.Api.Agent
 {
     public sealed class PoliciesTools
     {
-        private readonly HttpClient _http;
+        private readonly SqlCommandExecutor _sql;
 
-        public PoliciesTools(HttpClient http, string accessToken)
-        {
-            _http = http;
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        }
+        public PoliciesTools(SqlCommandExecutor sql) => _sql = sql;
 
         [KernelFunction]
         [Description("List insurance POLICIES (contracts). Use when the user asks about policy numbers or holders. Not for claims.")]
         public async Task<string> GetPolicies()
         {
-            var rows = await _http.GetFromJsonAsync<InsurancePolicyDto[]>("api/policies") ?? [];
+            var rows = await _sql.QueryAsync<InsurancePolicyDto>("""
+                SELECT PolicyId, PolicyNumber, HolderName, ProductName, Premium, Status
+                FROM dbo.InsurancePolicies
+                ORDER BY PolicyId DESC
+                """);
             return JsonSerializer.Serialize(rows);
         }
 
@@ -33,17 +32,23 @@ namespace Authentication.Bff.Api.Agent
             [Description("Product name e.g. Auto")] string productName,
             [Description("Premium amount")] decimal premium)
         {
-            var response = await _http.PostAsJsonAsync("api/policies", new UpsertPolicyRequest
-            {
-                PolicyNumber = policyNumber,
-                HolderName = holderName,
-                ProductName = productName,
-                Premium = premium,
-                Status = "Active"
-            });
-            var body = await response.Content.ReadAsStringAsync();
-            return $"HTTP {(int)response.StatusCode} {body}";
+            await _sql.ExecuteAsync(
+                """
+                INSERT INTO dbo.InsurancePolicies (PolicyNumber, HolderName, ProductName, Premium, Status)
+                VALUES (@PolicyNumber, @HolderName, @ProductName, @Premium, @Status)
+                """,
+                new
+                {
+                    PolicyNumber = policyNumber,
+                    HolderName = holderName,
+                    ProductName = productName,
+                    Premium = premium,
+                    Status = "Active"
+                });
+            var created = await _sql.QuerySingleAsync<InsurancePolicyDto>(
+                "SELECT TOP 1 PolicyId, PolicyNumber, HolderName, ProductName, Premium, Status FROM dbo.InsurancePolicies WHERE PolicyNumber = @PolicyNumber",
+                new { PolicyNumber = policyNumber });
+            return JsonSerializer.Serialize(created);
         }
     }
 }
-

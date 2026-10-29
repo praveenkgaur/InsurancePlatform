@@ -6,6 +6,12 @@ using Insurance.Helpers;
 using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile(
+    $"appsettings.{builder.Environment.EnvironmentName}.local.json",
+    optional: true,
+    reloadOnChange: true);
+if (builder.Environment.IsDevelopment())
+    builder.WebHost.UseUrls("http://localhost:5281");
 builder.Services.AddInsuranceData(builder.Configuration);
 builder.Services.AddInsuranceJwt(builder.Configuration);
 builder.Services.AddScoped<TokenService>();
@@ -13,9 +19,11 @@ builder.Services.AddScoped<SessionService>();
 builder.Services.AddScoped<LoginService>();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<NotificationPublisher>();
+builder.Services.AddScoped<Claims.Api.Services.ClaimsService>();
 builder.Services.AddAuthentication(SessionCookieAuthHandler.SchemeName).AddScheme<AuthenticationSchemeOptions, SessionCookieAuthHandler>(SessionCookieAuthHandler.SchemeName, _ => { });
 builder.Services.AddAuthorization();
-builder.Services.AddHttpClient("Gateway", client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient("Gateway", client =>
+    client.Timeout = TimeSpan.FromSeconds(builder.Environment.IsDevelopment() ? 3 : 30));
 builder.Services.AddHttpClient("AgentClaims");
 builder.Services.AddHttpClient("AgentPolicies");
 builder.Services.AddHttpClient("AgentPython");

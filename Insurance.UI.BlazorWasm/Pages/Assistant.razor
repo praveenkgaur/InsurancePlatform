@@ -46,9 +46,16 @@ else
         if (string.IsNullOrWhiteSpace(draft)) return;
         var text = draft.Trim();
         draft = "";
+        var history = lines
+            .Select(line => new AgentChatTurn
+            {
+                Role = line.Who == "You" ? "user" : "assistant",
+                Text = line.Text
+            })
+            .ToList();
         lines.Add(("You", text, null));
         busy = true;
-        var result = await Agent.ChatAsync(text);
+        var result = await Agent.ChatAsync(text, history);
         lines.Add(("Assistant", result.Reply, result.ToolsCalled));
         busy = false;
     }

@@ -1,25 +1,22 @@
-﻿using Insurance.Contracts.Claims;
+﻿using Claims.Api.Services;
+using Insurance.Contracts.Claims;
 using Microsoft.SemanticKernel;
 using System.ComponentModel;
-using System.Net.Http.Headers;
 using System.Text.Json;
 
 namespace Authentication.Bff.Api.Agent
 {
     public class ClaimsTools
     {
-        private readonly HttpClient _http;
-        public ClaimsTools(HttpClient http, string accessToken)
-        {
-            _http = http;
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        }
+        private readonly ClaimsService _claims;
+
+        public ClaimsTools(ClaimsService claims) => _claims = claims;
 
         [KernelFunction]
         [Description("List insurance claimants (people). Use when the user asks who the claimants are.")]
         public async Task<string> GetClaimants()
         {
-            var rows = await _http.GetFromJsonAsync<InsuranceClaimantDto[]>("api/claimants") ?? [];
+            var rows = await _claims.GetClaimantsAsync();
             return JsonSerializer.Serialize(rows);
         }
 
@@ -31,17 +28,14 @@ namespace Authentication.Bff.Api.Agent
         [Description("Claim amount")] decimal amount,
         [Description("Optional claim number; leave empty to auto-generate")] string claimNumber = "")
         {
-            var response = await _http.PostAsJsonAsync("api/claims", new CreateClaimRequest
+            var created = await _claims.CreateAsync(new CreateClaimRequest
             {
                 PolicyNumber = policyNumber,
                 ClaimantName = claimantName,
                 Amount = amount,
                 ClaimNumber = claimNumber
             });
-            var body = await response.Content.ReadAsStringAsync();
-            return $"HTTP {(int)response.StatusCode} {body}";
+            return JsonSerializer.Serialize(created);
         }
-
-
     }
 }
