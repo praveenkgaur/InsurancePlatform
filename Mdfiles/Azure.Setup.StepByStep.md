@@ -162,11 +162,19 @@ Save → the app will restart.
 
 ---
 
-## Step 8 — UI appsettings (before publish)
+## Step 8 — UI appsettings (local + Azure)
 
-**File:** `Insurance.UI.BlazorWasm\wwwroot\appsettings.json`
+**Do not** put Azure URLs in `wwwroot\appsettings.json`. That file stays **localhost** so F5 still works.
 
-Use **your** BFF hostname:
+Blazor WASM loads `appsettings.json` then `appsettings.{Environment}.json`:
+
+| File | When | BFF URL |
+| --- | --- | --- |
+| `wwwroot\appsettings.json` | both | `http://localhost:5281` |
+| `wwwroot\appsettings.Development.json` | Visual Studio F5 | localhost (same) |
+| `wwwroot\appsettings.Production.json` | publish to `pk-ins-ui` | `https://pk-ins-bff.azurewebsites.net` |
+
+`appsettings.Production.json` (already in the repo):
 
 ```json
 {
@@ -183,7 +191,9 @@ Use **your** BFF hostname:
 }
 ```
 
-Do **not** commit real passwords. Local laptop can keep `localhost` in a non-committed copy if you prefer; restore localhost when you debug on the PC.
+If your UI hostname is not `pk-ins-ui` / BFF is not `pk-ins-bff`, edit **Production** only. BFF Azure App settings still override BFF json; the **UI cannot** read those — it only reads these wwwroot files.
+
+Do **not** put the SQL password in any UI json.
 
 ---
 

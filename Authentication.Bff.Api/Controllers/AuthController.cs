@@ -77,7 +77,7 @@ public sealed class AuthController : ControllerBase
     {
         HttpOnly = true,
         Secure = Request.IsHttps,
-        SameSite = SameSiteMode.Lax,
+        SameSite = Request.IsHttps ? SameSiteMode.None : SameSiteMode.Lax,
         Path = "/",
         Expires = DateTimeOffset.UtcNow.AddHours(8)
     };
