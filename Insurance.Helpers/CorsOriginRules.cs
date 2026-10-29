@@ -11,8 +11,7 @@ public static class CorsOriginRules
         var ui = (configuredUiOrigin ?? "").Trim().TrimEnd('/');
         if (string.Equals(o, ui, StringComparison.OrdinalIgnoreCase))
             return true;
-        if (string.Equals(o, "http://localhost:5280", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(o, "http://localhost:5281", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(o, "http://localhost:5280", StringComparison.OrdinalIgnoreCase))
             return true;
 
         if (!Uri.TryCreate(o, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)

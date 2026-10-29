@@ -26,8 +26,6 @@ namespace Insurance.UI.BlazorWasm.Services
                 return;
 
             var url = _config["SignalR:HubUrl"] ?? "http://localhost:5281/hubs/notifications";
-            if (url.StartsWith('/'))
-                url = new Uri(_http.BaseAddress!, url.TrimStart('/')).ToString();
             var method = _config["SignalR:ClientMethodName"] ?? NotificationEvents.ClientMethod;
 
             _hubConnection = new HubConnectionBuilder()

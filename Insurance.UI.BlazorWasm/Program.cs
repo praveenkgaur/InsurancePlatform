@@ -11,12 +11,10 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 var bff = builder.Configuration["BffBaseUrl"] ?? "http://localhost:5281";
-if (string.IsNullOrWhiteSpace(bff) || bff == "/")
-    bff = builder.HostEnvironment.BaseAddress;
 
 builder.Services.AddTransient<CookieHandler>();
 
-builder.Services.AddHttpClient("Bff", client => client.BaseAddress = new Uri(bff, UriKind.Absolute))
+builder.Services.AddHttpClient("Bff", client => client.BaseAddress = new Uri(bff))
     .AddHttpMessageHandler<CookieHandler>();
 
 builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("Bff"));

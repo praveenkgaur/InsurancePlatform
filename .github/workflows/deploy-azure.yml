@@ -32,13 +32,11 @@ jobs:
 
       - name: Publish
         run: |
-          dotnet publish Insurance.UI.BlazorWasm/Insurance.UI.BlazorWasm.csproj -c Release -o artifacts/ui
           dotnet publish Authentication.Bff.Api/Authentication.Bff.Api.csproj -c Release -o artifacts/bff
-          mkdir -p artifacts/bff/wwwroot
-          cp -a artifacts/ui/wwwroot/. artifacts/bff/wwwroot/
           dotnet publish Claims.Api/Claims.Api.csproj -c Release -o artifacts/claims
           dotnet publish Policies.Api/Policies.Api.csproj -c Release -o artifacts/policies
           dotnet publish Billing.Api/Billing.Api.csproj -c Release -o artifacts/billing
+          dotnet publish Insurance.UI.BlazorWasm/Insurance.UI.BlazorWasm.csproj -c Release -o artifacts/ui
 
       - name: Deploy claims
         uses: azure/webapps-deploy@v3

@@ -34,12 +34,9 @@ var app = builder.Build();
 app.UseBffCorsHeaders(uiOrigin);
 app.UseCors();
 app.UseInsuranceSwagger();
-app.UseBlazorFrameworkFiles();
-app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<InsuranceClaimHub>("/hubs/notifications").RequireAuthorization();
-app.MapFallbackToFile("index.html");
 app.Run();
 
