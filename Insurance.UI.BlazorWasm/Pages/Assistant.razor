@@ -1,0 +1,55 @@
+﻿@page "/assistant"
+@using Insurance.Contracts.Agent
+@using Insurance.UI.BlazorWasm.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject AgentApi Agent
+@inject IConfiguration Config
+
+<PageTitle>Assistant</PageTitle>
+<h1>Assistant</h1>
+<p class="text-muted">Chat uses Semantic Kernel tools. Claims tools hit Claims.Api; policy tools hit Policies.Api. Cookie stays on BFF.</p>
+
+@if (!Config.GetValue("Agent:Enabled", false))
+{
+    <div class="alert alert-warning">Set Agent:Enabled true in UI appsettings and Agent:UseSemanticKernel true on BFF.</div>
+}
+else
+{
+    <div class="mb-3" style="max-width: 720px;">
+        @foreach (var line in lines)
+        {
+            <p><strong>@line.Who:</strong> @line.Text</p>
+            @if (line.Tools is { Length: > 0 })
+            {
+                <p class="form-text">Tools: @string.Join(", ", line.Tools)</p>
+            }
+        }
+    </div>
+    <div class="row g-2" style="max-width: 720px;">
+        <div class="col">
+            <input class="form-control" placeholder="e.g. File a claim for Praveen, amount 5000, policy POL-100" @bind="draft" @bind:event="oninput" />
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary" @onclick="Send" disabled="@busy">Send</button>
+        </div>
+    </div>
+}
+
+@code {
+    private string draft = "";
+    private bool busy;
+    private readonly List<(string Who, string Text, string[]? Tools)> lines = [];
+
+    private async Task Send()
+    {
+        if (string.IsNullOrWhiteSpace(draft)) return;
+        var text = draft.Trim();
+        draft = "";
+        lines.Add(("You", text, null));
+        busy = true;
+        var result = await Agent.ChatAsync(text);
+        lines.Add(("Assistant", result.Reply, result.ToolsCalled));
+        busy = false;
+    }
+}

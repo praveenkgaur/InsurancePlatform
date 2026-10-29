@@ -1,0 +1,74 @@
+# CD: CI already built on main; this publishes and zips to App Service.
+# Add GitHub secrets (Download publish profile on each Web App in Azure):
+#   AZURE_PUBLISH_PROFILE_BFF
+#   AZURE_PUBLISH_PROFILE_CLAIMS
+#   AZURE_PUBLISH_PROFILE_POLICIES
+#   AZURE_PUBLISH_PROFILE_BILLING
+#   AZURE_PUBLISH_PROFILE_UI
+name: Deploy Azure App Service
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - SP01.01.00.00
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore, build, test
+        run: |
+          dotnet restore InsurancePlatform.sln
+          dotnet build InsurancePlatform.sln --configuration Release --no-restore
+          dotnet test Insurance.Tests/Insurance.Tests.csproj --configuration Release --no-build
+
+      - name: Publish
+        run: |
+          dotnet publish Authentication.Bff.Api/Authentication.Bff.Api.csproj -c Release -o artifacts/bff
+          dotnet publish Claims.Api/Claims.Api.csproj -c Release -o artifacts/claims
+          dotnet publish Policies.Api/Policies.Api.csproj -c Release -o artifacts/policies
+          dotnet publish Billing.Api/Billing.Api.csproj -c Release -o artifacts/billing
+          dotnet publish Insurance.UI.BlazorWasm/Insurance.UI.BlazorWasm.csproj -c Release -o artifacts/ui
+
+      - name: Deploy claims
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: pk-ins-claims
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_CLAIMS }}
+          package: artifacts/claims
+
+      - name: Deploy policies
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: pk-ins-policies
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_POLICIES }}
+          package: artifacts/policies
+
+      - name: Deploy billing
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: pk-ins-billing
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_BILLING }}
+          package: artifacts/billing
+
+      - name: Deploy BFF
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: pk-ins-bff
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_BFF }}
+          package: artifacts/bff
+
+      - name: Deploy UI
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: pk-ins-ui
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_UI }}
+          package: artifacts/ui
