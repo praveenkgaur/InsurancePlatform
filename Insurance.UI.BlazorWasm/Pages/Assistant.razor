@@ -79,9 +79,13 @@ else
                 </div>
             </div>
             <p class="form-text mt-2">@HelpText</p>
-            @if (busy && IsMulti)
+            @if (busy && IsMulti && ShowAssigning)
             {
-                <p class="form-text">Agents are creating claimant, policy, claim…</p>
+                <div class="mb-3 p-2 border rounded">
+                    <strong>Coordinator</strong>
+                    <span class="badge bg-info">working</span>
+                    <div>Assigning Claimant agent → Policy agent → Claim agent. They start one after another, not all at once.</div>
+                </div>
             }
         </div>
         @if (IsMulti)
@@ -143,9 +147,14 @@ else
     private bool IsMulti =>
         string.Equals(meta?.Mode, "Multi", StringComparison.OrdinalIgnoreCase);
 
+    private bool ShowAssigning =>
+        IsMulti && (string.Equals(intake.Step, "Claim", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(intake.Step, "Run", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(intake.Step, "Done", StringComparison.OrdinalIgnoreCase));
+
     private string Watermark =>
-        busy && IsMulti
-            ? "Agents are creating claimant, policy, claim…"
+        busy && ShowAssigning
+            ? "Coordinator assigning: Claimant → Policy → Claim…"
             : (string.IsNullOrWhiteSpace(intake.Watermark)
                 ? "Claimant full name (any value)"
                 : intake.Watermark);
@@ -180,7 +189,28 @@ else
             .ToList();
         lines.Add(new ChatLine("You", text, null, null));
         busy = true;
+        ChatLine? assigning = null;
+        if (ShowAssigning)
+        {
+            assigning = new ChatLine(
+                "Coordinator",
+                "Assigning Claimant agent → Policy agent → Claim agent. They start in that order, not at the same time.",
+                null,
+                [
+                    new AgentStepDto
+                    {
+                        AgentKey = "Coordinator",
+                        DisplayName = "Coordinator",
+                        Status = "working",
+                        Message = "Coordinator is working: handing the case to specialists.",
+                        Utc = DateTime.UtcNow
+                    }
+                ]);
+            lines.Add(assigning);
+        }
         var result = await Agent.ChatAsync(text, history, board);
+        if (assigning is not null)
+            lines.Remove(assigning);
         board = result.CaseBoard ?? new CaseBoardDto();
         if (result.Intake is not null && !string.IsNullOrWhiteSpace(result.Intake.Step))
             intake = result.Intake;
