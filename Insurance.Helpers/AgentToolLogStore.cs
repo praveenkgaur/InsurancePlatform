@@ -11,24 +11,28 @@ public sealed class AgentToolLogStore
     public AgentToolLogStore(string connectionString) => _connectionString = connectionString;
 
     public async Task WriteAsync(
-        string pluginName,
-        string toolName,
-        string? requestJson,
-        string? responseJson,
-        string? details,
-        int durationMs,
-        bool succeeded)
+    string pluginName,
+    string toolName,
+    string? requestJson,
+    string? responseJson,
+    string? details,
+    int durationMs,
+    bool succeeded,
+    string? agentName = null)
     {
         try
         {
             await EnsureTableAsync();
             await using var connection = new SqlConnection(_connectionString);
             await connection.ExecuteAsync("""
-                INSERT INTO dbo.AgentToolLog
-                    (PluginName, ToolName, RequestJson, ResponseJson, Details, DurationMs, Succeeded)
-                VALUES
-                    (@PluginName, @ToolName, @RequestJson, @ResponseJson, @Details, @DurationMs, @Succeeded);
-                """,
+            IF COL_LENGTH('dbo.AgentToolLog', 'AgentName') IS NULL
+                ALTER TABLE dbo.AgentToolLog ADD AgentName NVARCHAR(100) NULL;
+
+            INSERT INTO dbo.AgentToolLog
+                (PluginName, ToolName, RequestJson, ResponseJson, Details, DurationMs, Succeeded, AgentName)
+            VALUES
+                (@PluginName, @ToolName, @RequestJson, @ResponseJson, @Details, @DurationMs, @Succeeded, @AgentName);
+            """,
                 new
                 {
                     PluginName = Truncate(pluginName, 100),
@@ -37,7 +41,8 @@ public sealed class AgentToolLogStore
                     ResponseJson = responseJson,
                     Details = details,
                     DurationMs = durationMs,
-                    Succeeded = succeeded
+                    Succeeded = succeeded,
+                    AgentName = Truncate(agentName ?? "", 100)
                 });
         }
         catch

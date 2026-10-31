@@ -9,8 +9,13 @@ namespace Authentication.Bff.Api.Agent
     public sealed class PoliciesTools
     {
         private readonly SqlCommandExecutor _sql;
+        private readonly RecordGuardrails _guardrails;
 
-        public PoliciesTools(SqlCommandExecutor sql) => _sql = sql;
+        public PoliciesTools(SqlCommandExecutor sql, RecordGuardrails guardrails)
+        {
+            _sql = sql;
+            _guardrails = guardrails;
+        }
 
         [KernelFunction]
         [Description("List insurance POLICIES (contracts). Use when the user asks about policy numbers or holders. Not for claims.")]
@@ -32,6 +37,23 @@ namespace Authentication.Bff.Api.Agent
             [Description("Product name e.g. Auto")] string productName,
             [Description("Premium amount")] decimal premium)
         {
+            var guard = _guardrails.Policy(policyNumber, holderName, productName, premium);
+            if (!guard.Ok)
+                return JsonSerializer.Serialize(new { error = guard.Message, code = guard.Code });
+
+            if (_guardrails.ReuseExistingPolicy)
+            {
+                var existing = await _sql.QuerySingleAsync<InsurancePolicyDto>(
+                    """
+                    SELECT TOP 1 PolicyId, PolicyNumber, HolderName, ProductName, Premium, Status
+                    FROM dbo.InsurancePolicies
+                    WHERE PolicyNumber = @PolicyNumber
+                    """,
+                    new { PolicyNumber = policyNumber.Trim() });
+                if (existing is not null)
+                    return JsonSerializer.Serialize(new { reused = true, existing.PolicyId, existing.PolicyNumber, existing.HolderName, existing.ProductName, existing.Premium, existing.Status });
+            }
+
             await _sql.ExecuteAsync(
                 """
                 INSERT INTO dbo.InsurancePolicies (PolicyNumber, HolderName, ProductName, Premium, Status)

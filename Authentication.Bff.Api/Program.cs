@@ -6,10 +6,15 @@ using Insurance.Helpers;
 using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Configuration.AddJsonFile(
-    $"appsettings.{builder.Environment.EnvironmentName}.local.json",
-    optional: true,
-    reloadOnChange: true);
+{
+    var localName = $"appsettings.{builder.Environment.EnvironmentName}.local.json";
+    foreach (var dir in new[] { builder.Environment.ContentRootPath, AppContext.BaseDirectory, Directory.GetCurrentDirectory() }.Distinct())
+    {
+        var path = Path.Combine(dir, localName);
+        if (File.Exists(path))
+            builder.Configuration.AddJsonFile(path, optional: true, reloadOnChange: true);
+    }
+}
 if (builder.Environment.IsDevelopment())
     builder.WebHost.UseUrls("http://localhost:5281");
 builder.Services.AddInsuranceData(builder.Configuration);
@@ -27,6 +32,7 @@ builder.Services.AddHttpClient("Gateway", client =>
 builder.Services.AddHttpClient("AgentClaims");
 builder.Services.AddHttpClient("AgentPolicies");
 builder.Services.AddHttpClient("AgentPython");
+builder.Services.AddSingleton<Authentication.Bff.Api.Agent.RecordGuardrails>();
 builder.Services.AddScoped<Authentication.Bff.Api.Agent.AgentChatService>();
 
 builder.Services.AddControllers();

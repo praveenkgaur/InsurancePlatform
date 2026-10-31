@@ -43,6 +43,38 @@ namespace Authentication.Bff.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("meta")]
+        public ActionResult<AgentMetaResponse> Meta()
+        {
+            var mode = _config["Agent:Mode"] ?? "Single";
+            return Ok(new AgentMetaResponse
+            {
+                Mode = mode,
+                Orchestrator = _config["Agent:Orchestrator"] ?? "Coordinator",
+                Intake = GuidedIntake.Start(),
+                Agents =
+                [
+                    new AgentMetaItem
+            {
+                Key = "Claimant",
+                DisplayName = _config["Agent:Agents:Claimant:DisplayName"] ?? "Claimant agent",
+                Enabled = _config.GetValue("Agent:Agents:Claimant:Enabled", true)
+            },
+            new AgentMetaItem
+            {
+                Key = "Policy",
+                DisplayName = _config["Agent:Agents:Policy:DisplayName"] ?? "Policy agent",
+                Enabled = _config.GetValue("Agent:Agents:Policy:Enabled", true)
+            },
+            new AgentMetaItem
+            {
+                Key = "Claim",
+                DisplayName = _config["Agent:Agents:Claim:DisplayName"] ?? "Claim agent",
+                Enabled = _config.GetValue("Agent:Agents:Claim:Enabled", true)
+            }
+                ]
+            });
+        }
         private bool TryReadSession(out Guid sessionId, out string rawToken)
         {
             sessionId = Guid.Empty;
