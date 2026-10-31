@@ -1,188 +1,152 @@
-# Azure setup — step by step (learning, ~USD 10–12)
+# Azure setup — your environment (pk)
 
-Budget **already created:** `pk-insurance-learn-12` (USD 12 / month, Cost Management).  
-Do **not** create Azure OpenAI, AKS, APIM Developer, or extra App Service plans until this URL login works.
+Budget: **`pk-insurance-learn-12`** (USD 12 / month).  
+Resource group: **`pk-insurance-dev`**.  
+Subscription: **Azure subscription 1**.  
+Region: **South India**.
 
-Keep **F1 Free** for App Service. **B1 (~USD 12–15)** will use almost the whole budget by itself.
+Do **not** use `*.azurewebsites.net` **without** the unique stamp. Each Web App Default domain is:
 
----
+`https://<app-name>-<stamp>.southindia-01.azurewebsites.net`
 
-## Done
+Wrong (DNS NXDOMAIN): `https://pk-ins-claims.azurewebsites.net`  
+Wrong: reuse another app’s stamp (for example the old UI stamp `a7aebdgfsdecmah` on claims).  
+Right: that app’s Overview → **Default domain**.
 
-- [x] Budget `pk-insurance-learn-12`
-- [x] Resource group `pk-insurance-dev`
-- [x] SQL logical server `pk-ins-demodb` (**South India** / India South Central)
-- [x] SQL firewall: Selected networks + client IP + Allow Azure services
-
-**SQL host (no extra `d`):** `pk-ins-demodb.database.windows.net`  
-(Wrong: `pk-ins-demoddb` → DNS error 11001)
+The BFF does **not** host Blazor. **pk-ins-ui** is the website. **pk-ins-bff** is cookie auth + proxy + SignalR. Claims / policies / billing are separate APIs. Ocelot is **not** deployed (`UseGateway: false`).
 
 ---
 
----
+## Your resources (done)
 
-## Step 1 — Resource group
+| Resource | Your value |
+| --- | --- |
+| Budget | `pk-insurance-learn-12` |
+| Resource group | `pk-insurance-dev` |
+| SQL logical server | `pk-ins-demodb` |
+| SQL admin | `insadmin` (SQL auth, not Entra) |
+| SQL host | `pk-ins-demodb.database.windows.net` (**not** `demoddb`) |
+| SQL database | `DemoDataBase` (Serverless) |
+| App Service plan | `plan-ins-dev` **Windows F1 Free** |
+| Web apps | `pk-ins-bff`, `pk-ins-claims`, `pk-ins-policies`, `pk-ins-billing`, `pk-ins-ui` |
 
-1. Portal → **Resource groups** → **Create**.
-2. Subscription: the same one as the budget.
-3. Name: `rg-insurance-dev`.
-4. Region: **East US** (use this region for SQL and App Service too).
-5. **Review + create** → **Create**.
+### Default domains (live — 29 Oct 2026)
 
----
+Copied from working `/health/downstream` and BFF Overview. If a stamp changes, use Overview again.
 
-## Step 2 — SQL server (logical server)
+| App name | Default domain |
+| --- | --- |
+| **pk-ins-bff** | `https://pk-ins-bff-c7d5a5fzfsh7gzch.southindia-01.azurewebsites.net` |
+| **pk-ins-claims** | `https://pk-ins-claims-gth7cvg6etb8hqa0.southindia-01.azurewebsites.net` |
+| **pk-ins-policies** | `https://pk-ins-policies-cqexgrdtgwbgc9cr.southindia-01.azurewebsites.net` |
+| **pk-ins-billing** | `https://pk-ins-billing-g5ecgqcmhmfaf7dr.southindia-01.azurewebsites.net` |
+| **pk-ins-ui** | Overview of **pk-ins-ui** → copy **Default domain**. The old value `https://pk-ins-ui-a7aebdgfsdecmah.southindia-01.azurewebsites.net` is **dead** (NXDOMAIN). |
 
-1. Search **SQL servers** → **Create** (not SQL virtual machine).
-2. Resource group: `rg-insurance-dev`.
-3. Server name: `sql-ins-<yourinitials>` (must be globally unique).
-4. Location: **East US**.
-5. Authentication: **Use SQL authentication**.
-   - Login: `insadmin`
-   - Password: strong password (save in a local note, **not** git).
-6. Networking: **Allow Azure services and resources to access this server** = **Yes**.
-7. **Review + create** → **Create**. Wait until it finishes.
+Stamps are **all different**: BFF `c7d5a5fzfsh7gzch`, claims `gth7cvg6etb8hqa0`, policies `cqexgrdtgwbgc9cr`, billing `g5ecgqcmhmfaf7dr`.
 
-### Firewall for your PC
-
-1. Open the SQL **server** (not the database yet).
-2. **Networking**.
-3. **Add your client IPv4 address**.
-4. Save.
-
----
-
-## Step 3 — Database `DemoDataBase` (Serverless)
-
-1. On the SQL server → **Create database**.
-2. Database name: **`DemoDataBase`** (exact spelling).
-3. Elastic pool: **No**.
-4. Compute + storage → **Configure**:
-   - Service tier: **General Purpose**
-   - Compute: **Serverless**
-   - Hardware: Gen5
-   - Max vCores: **1**
-   - Min vCores: **0.5**
-   - **Auto-pause**: **60 minutes** (or 15 if shown)
-   - Max data size: **2 GB**
-5. **Review + create** → **Create**.
-
----
-
-## Step 4 — Run SQL scripts
-
-1. Open database `DemoDataBase` → **Query editor** → sign in as `insadmin`.
-2. If `USE DemoDataBase;` errors, delete that line; you are already in this database.
-3. Run in order (from the repo `Sql` folder):
-   1. `001_InsurancePlatform.sql`
-   2. `002_SeedUsers.sql`
-   3. `003_InsuranceClaimants.sql`
-   4. `004_NotificationFlags.sql`
-4. Check: `SELECT COUNT(*) FROM dbo.Users;` — should be &gt; 0.
-
-Connection string (App Settings later; password secret):
+SQL connection string (password only in Azure / local note, **not** git):
 
 ```text
-Server=tcp:pk-ins-demodb.database.windows.net,1433;Initial Catalog=DemoDataBase;User ID=insadmin;Password=YOUR_PASSWORD;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;
+Server=tcp:pk-ins-demodb.database.windows.net,1433;Initial Catalog=DemoDataBase;User ID=insadmin;Password=YOUR_PASSWORD;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60;
 ```
 
----
-
-## Step 5 — App Service plan (F1 Free)
-
-SQL is in **South India**. Put the plan in **South India** too (East US still works, but slower).
-
-**Which portal tile:** All services → search `app` → click **App Service plans** (not **App Services** yet, not **AI Search / Foundry**).
-
-1. **App Service plans** → **Create**.
-2. Subscription: **Azure subscription 1**.
-3. Resource group: **`pk-insurance-dev`** (the one you already have; not `rg-insurance-dev`).
-4. Name: `plan-ins-dev`.
-5. Operating system: **Windows** (Linux often has **no F1**).
-6. Region: **South India** (same as `pk-ins-demodb`). If F1 is missing in South India, try **East US** / **East US 2** on **Windows** — apps can still reach SQL.
-7. Pricing tab: **Dev/Test** → **F1** (Free).  
-   Size should show **F1** / **Shared infrastructure** / **1 GB**. Do **not** pick **B1**, **B2**, or **P1v3**.
-8. **Review + create** → **Create**. Wait until Succeeded.
-
-If the portal only offers **B1** and no F1: change OS back to **Windows** and Dev/Test. B1 (~USD 12–15) will consume the `pk-insurance-learn-12` budget by itself.
-
-**Next (Step 6):** All services → **App Services** (blue cloud) → **Create** web apps on **existing** plan `plan-ins-dev`. Do not create a second plan.
+Demo login (from `Sql/002_SeedUsers.sql`): **`Praveen` / `Password@123`**. Adjuster: **`Adjuster` / `Password@123`**.
 
 ---
 
-## Step 6 — Five web apps (same plan)
+## Local vs Azure (they must not mix)
 
-Create **Web App** five times. Every time: **existing plan** `plan-ins-dev`. Never “create new plan”.
+ASP.NET loads: `appsettings.json` → `appsettings.{Environment}.json` → User Secrets (local only) → Environment variables (Azure App settings win).
 
-Replace `pk` if the name is taken:
+| | Local F5 | Azure App Service |
+| --- | --- | --- |
+| Environment | **Development** (`launchSettings.json`) | **Production** |
+| SQL | LocalDB `DemoDataBase` in `appsettings.Development.json` | Connection string **DemoDataBase** on each API |
+| Downstream | `http://localhost:5283/5284/5285` | long `*.southindia-01.azurewebsites.net` hosts |
+| UI | `http://localhost:5280` → BFF `http://localhost:5281` | **pk-ins-ui** Default domain → BFF Default domain |
+| Semantic Kernel | `Agent:UseSemanticKernel` **true** in Development.json; keys in **User Secrets** | **false** in Production.json unless you set Azure App settings |
+| Secrets | `dotnet user-secrets` on BFF (not git) | Azure App settings / Key Vault (not git) |
 
-| Web app name | What it hosts |
-| --- | --- |
-| `pk-ins-bff` | Authentication.Bff.Api |
-| `pk-ins-claims` | Claims.Api |
-| `pk-ins-policies` | Policies.Api |
-| `pk-ins-billing` | Billing.Api |
-| `pk-ins-ui` | Insurance.UI.BlazorWasm |
+Do **not** put Azure URLs or Azure SQL in `appsettings.Development.json`.  
+Do **not** put localhost in Azure App settings.  
+Do **not** set `ASPNETCORE_ENVIRONMENT=Production` on local F5.
 
-Runtime: **.NET 10** (or newest .NET listed).
+Local SK keys (BFF project folder):
 
-On **`pk-ins-bff`** → Configuration → **General settings** → **Web sockets: On** → Save.
+```bat
+cd Authentication.Bff.Api
+dotnet user-secrets set "Agent:AzureOpenAI:Endpoint" "https://YOUR-RESOURCE.openai.azure.com/"
+dotnet user-secrets set "Agent:AzureOpenAI:ApiKey" "YOUR-KEY"
+dotnet user-secrets set "Agent:AzureOpenAI:Deployment" "YOUR-DEPLOYMENT-NAME"
+```
+
+Those secrets never go to Azure. To turn SK **on** in Azure later, set `Agent__UseSemanticKernel` and `Agent__AzureOpenAI__*` on **pk-ins-bff** only — that does not change local User Secrets.
+
+If `dotnet user-secrets list` still shows `Downstream__Claims` with an Azure host, remove it (`dotnet user-secrets remove "Downstream:Claims"`) or local F5 will call Azure.
 
 ---
 
-## Step 7 — Application settings
+## Where each setting goes
 
-**Configuration** → **Application settings** → **+ New application setting**.
+Azure **Environment variables** override published `appsettings.Production.json`.
 
-### All four APIs (`bff`, `claims`, `policies`, `billing`)
+### A — All four APIs (`pk-ins-bff`, `pk-ins-claims`, `pk-ins-policies`, `pk-ins-billing`)
 
-| Name | Value |
+**Environment variables → Connection strings**
+
+| Name | Type | Value |
+| --- | --- | --- |
+| `DemoDataBase` | **SQLAzure** | SQL string above |
+
+JWT: optional. If you set `Jwt__SigningKey`, use the **same** value on all four.
+
+**Do not** add `UiOrigin` / `Downstream__*` on claims, policies, or billing.
+
+SQL server **`pk-ins-demodb`** → Networking: **Selected networks**, your client IP, **Allow Azure services**, Save. Run `Sql/001`–`004` on `DemoDataBase` if tables are missing.
+
+### B — BFF only (`pk-ins-bff`)
+
+**Environment variables → App settings** (not Connection strings, except SQL):
+
+| Name | Your value |
 | --- | --- |
-| `ConnectionStrings__DemoDataBase` | SQL string from Step 4 |
-| `ASPNETCORE_ENVIRONMENT` | `Production` |
-| `Jwt__Issuer` | `InsurancePlatform` |
-| `Jwt__Audience` | `InsuranceApis` |
-| `Jwt__SigningKey` | one 32+ character secret, **same on all four** |
-
-### BFF only (`pk-ins-bff`)
-
-| Name | Value |
-| --- | --- |
-| `UiOrigin` | `https://pk-ins-ui.azurewebsites.net` |
+| `UiOrigin` | **pk-ins-ui** Default domain from Overview (no trailing `/`). Must match the browser origin exactly. |
 | `UseGateway` | `false` |
-| `Downstream__Claims` | `https://pk-ins-claims.azurewebsites.net` |
-| `Downstream__Policies` | `https://pk-ins-policies.azurewebsites.net` |
-| `Downstream__Billing` | `https://pk-ins-billing.azurewebsites.net` |
+| `Downstream__Claims` | `https://pk-ins-claims-gth7cvg6etb8hqa0.southindia-01.azurewebsites.net` |
+| `Downstream__Policies` | `https://pk-ins-policies-cqexgrdtgwbgc9cr.southindia-01.azurewebsites.net` |
+| `Downstream__Billing` | `https://pk-ins-billing-g5ecgqcmhmfaf7dr.southindia-01.azurewebsites.net` |
 | `SignalR__Enabled` | `true` |
 | `SignalR__UseAzure` | `false` |
 | `Agent__UseSemanticKernel` | `false` |
 | `Agent__UsePythonAgents` | `false` |
 
-Save → the app will restart.
+**Apply** → **Save**.
 
----
+**pk-ins-bff → CORS** (API blade, not Environment variables): **Allowed Origins empty**. Delete `*`. Credentials **off**. The app uses `UiOrigin` in code. Azure `*` breaks cookies.
 
-## Step 8 — UI appsettings (local + Azure)
+**Configuration → General settings** on BFF:
 
-**Do not** put Azure URLs in `wwwroot\appsettings.json`. That file stays **localhost** so F5 still works.
+- **Web sockets:** On  
+- **SCM Basic Auth Publishing Credentials:** On (needed to download publish profile)  
+- F1 stays **32 Bit**; **Always On** stays off  
 
-Blazor WASM loads `appsettings.json` then `appsettings.{Environment}.json`:
+### C — UI (`pk-ins-ui`)
 
-| File | When | BFF URL |
+**No** Azure App settings for BFF URL. WASM only reads published `wwwroot` json.
+
+| File | When | Value |
 | --- | --- | --- |
-| `wwwroot\appsettings.json` | both | `http://localhost:5281` |
-| `wwwroot\appsettings.Development.json` | Visual Studio F5 | localhost (same) |
-| `wwwroot\appsettings.Production.json` | publish to `pk-ins-ui` | `https://pk-ins-bff.azurewebsites.net` |
-
-`appsettings.Production.json` (already in the repo):
+| `wwwroot/appsettings.json` | local F5 | `http://localhost:5281` |
+| `wwwroot/appsettings.Development.json` | local F5 | same localhost |
+| `wwwroot/appsettings.Production.json` | Azure publish | BFF Default domain below |
 
 ```json
 {
-  "BffBaseUrl": "https://pk-ins-bff.azurewebsites.net",
+  "BffBaseUrl": "https://pk-ins-bff-c7d5a5fzfsh7gzch.southindia-01.azurewebsites.net",
   "SignalR": {
     "Enabled": true,
     "UseAzure": false,
-    "HubUrl": "https://pk-ins-bff.azurewebsites.net/hubs/notifications",
+    "HubUrl": "https://pk-ins-bff-c7d5a5fzfsh7gzch.southindia-01.azurewebsites.net/hubs/notifications",
     "ClientMethodName": "ReceiveNotification"
   },
   "Agent": {
@@ -191,88 +155,110 @@ Blazor WASM loads `appsettings.json` then `appsettings.{Environment}.json`:
 }
 ```
 
-If your UI hostname is not `pk-ins-ui` / BFF is not `pk-ins-bff`, edit **Production** only. BFF Azure App settings still override BFF json; the **UI cannot** read those — it only reads these wwwroot files.
+---
 
-Do **not** put the SQL password in any UI json.
+## Cookie and CORS (UI and BFF are two hosts)
+
+HTTPS cookie: `__Host-AppSession`, `HttpOnly`, `Secure`, `SameSite=None` when the page origin is not the BFF host.
+
+Login URL: **UI** Default domain + `/login`  
+API calls: **BFF** + `/auth/login`, `/auth/me`, `/api/claims`, …  
+BFF `/` returns **404** — that is normal (no Blazor on the BFF).
+
+`GET /auth/me` **401** on the login page (not signed in yet) is normal. After Sign in, `/auth/login` and `/api/claims` should be **200**.
+
+Use a **normal** Chrome window. Incognito often blocks the third-party BFF cookie.
 
 ---
 
-## Step 9 — Cookie for two Azure hostnames
+## GitHub CD
 
-**File:** `Authentication.Bff.Api\Controllers\AuthController.cs` — method `CookieOptions()`:
+Repo: `praveenkgaur/InsurancePlatform`  
+Workflow: `.github/workflows/deploy-azure.yml`  
+Branch: **`SP01.01.00.00`** (also `main`).
 
-```csharp
-private CookieOptions CookieOptions() => new()
-{
-    HttpOnly = true,
-    Secure = Request.IsHttps,
-    SameSite = Request.IsHttps ? SameSiteMode.None : SameSiteMode.Lax,
-    Path = "/",
-    Expires = DateTimeOffset.UtcNow.AddHours(8)
-};
-```
+Push publishes **five separate zips** (BFF, claims, policies, billing, UI). UI `wwwroot` is **not** copied into the BFF.
 
-Shift+F5 (stop debug) → rebuild BFF. HTTPS cookie is `__Host-AppSession` with **SameSite=None**.
+**Repository secrets** (Settings → Secrets and variables → Actions):
 
----
-
-## Step 10 — Publish
-
-Visual Studio, each project → **Publish** → **Azure App Service** → matching web app:
-
-1. Claims.Api → `pk-ins-claims`  
-2. Policies.Api → `pk-ins-policies`  
-3. Billing.Api → `pk-ins-billing`  
-4. Authentication.Bff.Api → `pk-ins-bff`  
-5. Insurance.UI.BlazorWasm → `pk-ins-ui`  
-
----
-
-## Step 11 — Test (no OpenAI)
-
-1. Browser: `https://pk-ins-ui.azurewebsites.net`  
-2. Login with the seed user from `002_SeedUsers.sql`.  
-3. Open Claims / Claimants. First SQL hit may wait **30–60 s** (Serverless resume).
-
-| Symptom | Check |
+| Secret | Azure app |
 | --- | --- |
-| Login 401 / cookie | Step 9 SameSite, `UiOrigin` exact UI URL |
-| 502 on claimants | `Downstream__Claims`, Claims app **Running** |
-| SQL timeout | firewall + wait for serverless resume |
-| Site won’t start | F1 1 GB RAM — stop unused apps; try one API first |
+| `AZURE_PUBLISH_PROFILE_BFF` | `pk-ins-bff` |
+| `AZURE_PUBLISH_PROFILE_CLAIMS` | `pk-ins-claims` |
+| `AZURE_PUBLISH_PROFILE_POLICIES` | `pk-ins-policies` |
+| `AZURE_PUBLISH_PROFILE_BILLING` | `pk-ins-billing` |
+| `AZURE_PUBLISH_PROFILE_UI` | `pk-ins-ui` |
+
+Download: each Web App → Overview → **Download publish profile** (enable **SCM Basic Auth** first).
 
 ---
 
-## Step 12 — Azure OpenAI (only after login works)
+## Health and Swagger (after deploy)
 
-1. Confirm Cost analysis is still under the budget.  
-2. Create **Azure OpenAI** in `pk-insurance-dev`.  
-3. Deploy model `gpt-4o-mini`.  
-4. BFF settings: `Agent__UseSemanticKernel=true`, `Agent__AzureOpenAI__Endpoint`, `ApiKey`, `Deployment`.  
-5. UI `Agent:Enabled` true, republish UI.
+| Check | URL |
+| --- | --- |
+| BFF health | `https://pk-ins-bff-c7d5a5fzfsh7gzch.southindia-01.azurewebsites.net/health` |
+| BFF → APIs | `https://pk-ins-bff-c7d5a5fzfsh7gzch.southindia-01.azurewebsites.net/health/downstream` |
+| BFF Swagger | `https://pk-ins-bff-c7d5a5fzfsh7gzch.southindia-01.azurewebsites.net/swagger` |
+| Claims Swagger | `https://pk-ins-claims-gth7cvg6etb8hqa0.southindia-01.azurewebsites.net/swagger` |
+| Policies Swagger | `https://pk-ins-policies-cqexgrdtgwbgc9cr.southindia-01.azurewebsites.net/swagger` |
+| Billing Swagger | `https://pk-ins-billing-g5ecgqcmhmfaf7dr.southindia-01.azurewebsites.net/swagger` |
 
-Details: `Mdfiles\SemanticKernel.Agent.PasteGuide.md`.
+`/health` needs **no token**. `"ok": true` on all three downstream rows means the 502 hostnames are correct. Claims **data** in Swagger still needs JWT (the BFF sends that; the browser does not).
 
 ---
 
-## Do not create yet
+## Recreate from scratch (if you ever delete the group)
 
-- Extra App Service **plans**
-- Azure SignalR, APIM, AKS, Machine Learning
-- Linux **B1** (unless you drop F1 and accept the budget alert)
+1. Budget `pk-insurance-learn-12` (already exists).  
+2. Resource group `pk-insurance-dev`.  
+3. **SQL logical servers** → Create `pk-ins-demodb`, SQL auth `insadmin`, South India (East US did not allow SQL).  
+4. Networking: **Selected networks**, client IP, **Allow Azure services**, Save.  
+5. **SQL databases** → Create `DemoDataBase` Serverless on **existing** server (not VM, not Managed Instance).  
+6. Run `Sql/001_InsurancePlatform.sql` → `002_SeedUsers.sql` → `003` → `004`.  
+7. **App Service plans** → `plan-ins-dev`, Windows, **F1**, South India.  
+8. **App Services** → **Web App** five times, existing plan, **.NET 10**, names above.  
+9. Settings as in **Where each setting goes** (use **new** Default domains from Overview).  
+10. Push `SP01.01.00.00` → **Deploy Azure App Service**.
+
+---
+
+## Test
+
+1. Open **pk-ins-ui** Default domain + `/login` (not the BFF URL, not the dead `a7aebdgfsdecmah` host).  
+2. Network: `/auth/me` goes to **`pk-ins-bff-c7d5a5fzfsh7gzch.southindia-01.azurewebsites.net`**.  
+3. Sign in `Praveen` / `Password@123`.  
+4. Claims list: `GET …/api/claims` **200**.  
+5. First SQL call after pause may take 30–60 s.
+
+| Error | Cause |
+| --- | --- |
+| `ERR_NAME_NOT_RESOLVED` on `pk-ins-*.azurewebsites.net` (no stamp) | Short hostname — use Default domain |
+| `No such host` on `/health/downstream` | Downstream reused another app’s stamp |
+| `GET /api/claims` **502** | `Downstream__Claims` wrong or claims app down |
+| BFF `/` HTTP 404 | Normal |
+| Login CORS / missing ACAO | Azure CORS has `*`, or `UiOrigin` ≠ UI Default domain |
+| `POST /auth/login` **500** ~15 s | SQL connection string, firewall, or scripts not run |
+| Login fails only in Incognito | Third-party cookie (UI host ≠ BFF host) — use a normal window |
+
+---
+
+## Later — Azure OpenAI
+
+BFF App settings: `Agent__UseSemanticKernel=true` plus `Agent__AzureOpenAI__Endpoint`, `ApiKey`, `Deployment`.  
+UI Production: `"Agent": { "Enabled": true }`, then deploy.  
+See `Mdfiles/SemanticKernel.Agent.PasteGuide.md`.
 
 ---
 
 ## Checklist
 
-- [x] Budget `pk-insurance-learn-12`
-- [x] `pk-insurance-dev`
-- [x] SQL server `pk-ins-demodb` + firewall
-- [ ] `DemoDataBase` Serverless + scripts 001–004
-- [ ] Plan `plan-ins-dev` **F1**
-- [ ] Five web apps on that plan
-- [ ] App settings + UI appsettings
-- [ ] SameSite=None cookie
-- [ ] Publish five projects
-- [ ] Login on HTTPS UI
-- [ ] OpenAI later
+- [x] Budget, RG, SQL server + firewall, F1 plan, five web apps  
+- [x] GitHub publish-profile secrets  
+- [x] CD on `main` and `SP01.01.00.00`  
+- [x] `Downstream__*` = long claims / policies / billing Default domains (`ok: true` on `/health/downstream`)  
+- [x] Demo SQL login works (`Praveen` / `Password@123`)  
+- [ ] `UiOrigin` + browser login = **current** pk-ins-ui Default domain (not `a7aebdgfsdecmah`)  
+- [ ] Web sockets On (BFF)  
+- [ ] Azure BFF CORS list empty (no `*`)  
+- [ ] OpenAI later  

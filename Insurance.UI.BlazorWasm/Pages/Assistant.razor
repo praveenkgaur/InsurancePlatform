@@ -8,48 +8,210 @@
 
 <PageTitle>Assistant</PageTitle>
 <h1>Assistant</h1>
-<p class="text-muted">Chat uses Semantic Kernel tools. Claims tools hit Claims.Api; policy tools hit Policies.Api. Cookie stays on BFF.</p>
 
 @if (!Config.GetValue("Agent:Enabled", false))
 {
     <div class="alert alert-warning">Set Agent:Enabled true in UI appsettings and Agent:UseSemanticKernel true on BFF.</div>
 }
+else if (meta is null)
+{
+    <p class="text-muted">Loading agent mode…</p>
+}
 else
 {
-    <div class="mb-3" style="max-width: 720px;">
-        @foreach (var line in lines)
+    <p class="mb-2">
+        <span class="badge @(IsMulti ? "bg-primary" : "bg-secondary")">@(IsMulti ? "Multi-agent" : "Single agent")</span>
+        @if (IsMulti)
         {
-            <p><strong>@line.Who:</strong> @line.Text</p>
-            @if (line.Tools is { Length: > 0 })
-            {
-                <p class="form-text">Tools: @string.Join(", ", line.Tools)</p>
-            }
+            <span class="text-muted ms-2">Guided intake: Claimant → Policy → Claim, then specialists create records.</span>
         }
-    </div>
-    <div class="row g-2" style="max-width: 720px;">
-        <div class="col">
-            <input class="form-control" placeholder="e.g. File a claim for Praveen, amount 5000, policy POL-100" @bind="draft" @bind:event="oninput" />
+        else
+        {
+            <span class="text-muted ms-2">One assistant, all tools.</span>
+        }
+    </p>
+
+    <div class="row g-3">
+        <div class="col-lg-7">
+            <div class="mb-3">
+                @foreach (var line in lines)
+                {
+                    <div class="mb-3 p-2 border rounded">
+                        <strong>@line.Who</strong>
+                        <div>@line.Text</div>
+                        @if (line.Tools is { Length: > 0 })
+                        {
+                            <div class="form-text">Tools: @string.Join(", ", line.Tools)</div>
+                        }
+                        @if (line.Steps is { Count: > 0 })
+                        {
+                            <div class="mt-2">
+                                @foreach (var step in line.Steps)
+                                {
+                                    <div class="small py-1">
+                                        <span class="badge @StatusClass(step.Status)">@step.DisplayName</span>
+                                        <span class="text-muted">@step.Status</span>
+                                        @if (!string.IsNullOrWhiteSpace(step.Message))
+                                        {
+                                            <div>@step.Message</div>
+                                        }
+                                    </div>
+                                    @if (HandoffAfter(line, step) is { } hop)
+                                    {
+                                        <div class="small text-primary">@hop.From agent → @hop.To agent: @hop.Reason</div>
+                                    }
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="row g-2">
+                <div class="col">
+                    <input class="form-control"
+                           placeholder="@Watermark"
+                           @bind="draft"
+                           @bind:event="oninput"
+                           disabled="@busy" />
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary" @onclick="Send" disabled="@busy">Send</button>
+                </div>
+            </div>
+            <p class="form-text mt-2">@HelpText</p>
+            @if (busy && IsMulti)
+            {
+                <p class="form-text">Agents are creating claimant, policy, claim…</p>
+            }
         </div>
-        <div class="col-auto">
-            <button class="btn btn-primary" @onclick="Send" disabled="@busy">Send</button>
-        </div>
+        @if (IsMulti)
+        {
+            <div class="col-lg-5">
+                <h5>Case board</h5>
+                <p class="form-text">Fills as you answer intake, then shows created numbers.</p>
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <strong>Claimant</strong> <span class="badge bg-light text-dark">@board.Claimant.Status</span>
+                        <div>@(string.IsNullOrWhiteSpace(board.Claimant.FullName) ? "—" : board.Claimant.FullName)</div>
+                        <div class="form-text">@(board.Claimant.Id is int cid ? $"Claimant # {cid}" : "No claimant number yet")</div>
+                    </div>
+                </div>
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <strong>Policy</strong> <span class="badge bg-light text-dark">@board.Policy.Status</span>
+                        <div>@(string.IsNullOrWhiteSpace(board.Policy.PolicyNumber) ? "—" : board.Policy.PolicyNumber)</div>
+                        <div class="form-text">
+                            @(board.Policy.Id is int pid ? $"Policy id {pid}" : "No policy number yet")
+                            @if (!string.IsNullOrWhiteSpace(board.Policy.HolderName))
+                            {
+                                <span> · Holder @board.Policy.HolderName</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <strong>Claim</strong> <span class="badge bg-light text-dark">@board.Claim.Status</span>
+                        <div>@(string.IsNullOrWhiteSpace(board.Claim.ClaimNumber) ? "—" : board.Claim.ClaimNumber)</div>
+                        <div class="form-text">
+                            @(board.Claim.Id is int clid ? $"Claim id {clid}" : "No claim number yet")
+                            @if (board.Claim.Amount is decimal amt)
+                            {
+                                <span> · Amount @amt</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
     </div>
 }
 
 @code {
     private string draft = "";
     private bool busy;
-    private readonly List<(string Who, string Text, string[]? Tools)> lines = [];
+    private AgentMetaResponse? meta;
+    private CaseBoardDto board = new();
+    private AgentIntakeDto intake = new()
+    {
+        Step = "Claimant",
+        Watermark = "Claimant full name. Example: SKPK",
+        Help = "Step 1 of 3 — person first. Optional: email, phone."
+    };
+    private readonly List<ChatLine> lines = [];
+
+    private bool IsMulti =>
+        string.Equals(meta?.Mode, "Multi", StringComparison.OrdinalIgnoreCase);
+
+    private string Watermark =>
+        busy && IsMulti
+            ? "Agents are creating claimant, policy, claim…"
+            : (string.IsNullOrWhiteSpace(intake.Watermark)
+                ? "Claimant full name. Example: SKPK"
+                : intake.Watermark);
+
+    private string HelpText =>
+        string.IsNullOrWhiteSpace(intake.Help)
+            ? "Step 1 of 3 — person first. Optional: email, phone."
+            : intake.Help;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            meta = await Agent.MetaAsync();
+            if (meta?.Intake is not null && !string.IsNullOrWhiteSpace(meta.Intake.Watermark))
+                intake = meta.Intake;
+        }
+        catch { meta = new AgentMetaResponse { Mode = "Single" }; }
+    }
 
     private async Task Send()
     {
         if (string.IsNullOrWhiteSpace(draft)) return;
         var text = draft.Trim();
         draft = "";
-        lines.Add(("You", text, null));
+        var history = lines
+            .Select(line => new AgentChatTurn
+            {
+                Role = line.Who == "You" ? "user" : "assistant",
+                Text = line.Text
+            })
+            .ToList();
+        lines.Add(new ChatLine("You", text, null, null));
         busy = true;
-        var result = await Agent.ChatAsync(text);
-        lines.Add(("Assistant", result.Reply, result.ToolsCalled));
+        var result = await Agent.ChatAsync(text, history, board);
+        board = result.CaseBoard ?? new CaseBoardDto();
+        if (result.Intake is not null && !string.IsNullOrWhiteSpace(result.Intake.Step))
+            intake = result.Intake;
+        var who = IsMulti || string.Equals(result.Mode, "Multi", StringComparison.OrdinalIgnoreCase)
+            ? "Coordinator"
+            : "Assistant";
+        lines.Add(new ChatLine(who, result.Reply, result.ToolsCalled, result.Steps)
+        {
+            BoardHandoffs = result.CaseBoard?.Handoffs
+        });
         busy = false;
+    }
+
+    private static string StatusClass(string status) => status switch
+    {
+        "done" => "bg-success",
+        "working" => "bg-info",
+        "needs_input" => "bg-warning text-dark",
+        "failed" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private static HandoffDto? HandoffAfter(ChatLine line, AgentStepDto step)
+    {
+        var hops = line.BoardHandoffs;
+        return hops?.FirstOrDefault(h =>
+            string.Equals(h.From, step.AgentKey, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private sealed record ChatLine(string Who, string Text, string[]? Tools, List<AgentStepDto>? Steps)
+    {
+        public List<HandoffDto>? BoardHandoffs { get; set; }
     }
 }

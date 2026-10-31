@@ -7,12 +7,12 @@
 #   AZURE_PUBLISH_PROFILE_UI
 name: Deploy Azure App Service
 
+# Auto-deploy only from main (or Run workflow). SP01.01.00.00 pushes do not update App Service.
 on:
   workflow_dispatch:
   push:
     branches:
       - main
-      - SP01.01.00.00
 
 jobs:
   deploy:

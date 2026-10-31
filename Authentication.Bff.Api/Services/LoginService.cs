@@ -64,8 +64,12 @@ public sealed class LoginService
 
     public async Task<string?> GetAccessTokenAsync(Guid sessionId, string rawToken)
     {
-        var session = await _sessions.GetAsync(sessionId, rawToken);
-        return session?.AccessToken;
+        var user = await GetCurrentAsync(sessionId, rawToken);
+        if (user is null)
+            return null;
+        // Mint a new JWT for each API call. /auth/me uses the session cookie only;
+        // a stored token older than Jwt:AccessTokenMinutes (30) made Claims/Policies return 401.
+        return _tokens.CreateAccessToken(user.UserName, user.Roles, user.Permissions);
     }
 
     public Task SignOutAsync(Guid sessionId) => _sessions.DeleteAsync(sessionId);

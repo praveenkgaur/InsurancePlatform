@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <UseAppHost>false</UseAppHost>
+    <!-- VS Framework MSBuild cannot load the Debug DLL under Smart App Control; see AfterBlazorWasm.targets -->
+    <CustomAfterBlazorWebAssemblySdkTargets>$(MSBuildThisFileDirectory)AfterBlazorWasm.targets</CustomAfterBlazorWebAssemblySdkTargets>
   </PropertyGroup>
 
   <ItemGroup>

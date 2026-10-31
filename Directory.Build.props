@@ -1,10 +1,6 @@
 <Project>
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Authentication.Bff.Api'
-                         or '$(MSBuildProjectName)' == 'Claims.Api'
-                         or '$(MSBuildProjectName)' == 'Policies.Api'
-                         or '$(MSBuildProjectName)' == 'Billing.Api'
-                         or '$(MSBuildProjectName)' == 'Ocelot.Gateway'">
-    <!-- VS F5 uses signed dotnet.exe + DLL instead of the unsigned apphost .exe (Smart App Control). -->
+  <PropertyGroup>
+    <!-- No unsigned ProjectName.exe. Run with `dotnet Project.dll` / VS F5 (dotnet.exe). -->
     <UseAppHost>false</UseAppHost>
   </PropertyGroup>
 </Project>

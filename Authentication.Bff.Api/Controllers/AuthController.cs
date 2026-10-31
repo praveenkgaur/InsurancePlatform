@@ -2,6 +2,7 @@ using Insurance.Contracts.Auth;
 using Insurance.Contracts.Common;
 using Insurance.Helpers;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Authentication.Bff.Api.Services;
 
 namespace Authentication.Bff.Api.Controllers;
@@ -23,12 +24,22 @@ public sealed class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<ActionResult<SessionUserDto>> Login([FromBody] LoginRequest request)
     {
-        var result = await _login.SignInAsync(request);
-        if (result is null)
-            return Unauthorized(new ApiMessage { Message = "Invalid user name or password." });
+        try
+        {
+            var result = await _login.SignInAsync(request);
+            if (result is null)
+                return Unauthorized(new ApiMessage { Message = "Invalid user name or password." });
 
-        AppendSessionCookie(result.Value.SessionId, result.Value.RawToken);
-        return Ok(result.Value.User);
+            AppendSessionCookie(result.Value.SessionId, result.Value.RawToken);
+            return Ok(result.Value.User);
+        }
+        catch (SqlException ex)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new ApiMessage
+            {
+                Message = $"Database unavailable (SQL {ex.Number}). Set BFF connection string DemoDataBase, allow Azure SQL firewall, and run Sql/001–004."
+            });
+        }
     }
 
 
@@ -73,14 +84,27 @@ public sealed class AuthController : ControllerBase
         Response.Cookies.Append(CookieSettings.Name(Request.IsHttps), value, CookieOptions());
     }
 
-    private CookieOptions CookieOptions() => new()
+    private CookieOptions CookieOptions()
     {
-        HttpOnly = true,
-        Secure = Request.IsHttps,
-        SameSite = Request.IsHttps ? SameSiteMode.None : SameSiteMode.Lax,
-        Path = "/",
-        Expires = DateTimeOffset.UtcNow.AddHours(8)
-    };
+        var crossSite = IsCrossSiteRequest();
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = Request.IsHttps && crossSite ? SameSiteMode.None : SameSiteMode.Lax,
+            Path = "/",
+            Expires = DateTimeOffset.UtcNow.AddHours(8)
+        };
+    }
+
+    private bool IsCrossSiteRequest()
+    {
+        if (!Request.Headers.TryGetValue("Origin", out var origin) || string.IsNullOrWhiteSpace(origin))
+            return false;
+        if (!Uri.TryCreate(origin.ToString(), UriKind.Absolute, out var originUri))
+            return false;
+        return !string.Equals(originUri.Host, Request.Host.Host, StringComparison.OrdinalIgnoreCase);
+    }
 
     private bool TryReadSession(out Guid sessionId, out string rawToken)
     {

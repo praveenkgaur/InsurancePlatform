@@ -1,5 +1,8 @@
 using Authentication.Bff.Api.Services;
+using Claims.Api.Services;
+using Insurance.Contracts.Claims;
 using Insurance.Contracts.Notifications;
+using Insurance.Contracts.Policies;
 using Insurance.Helpers;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,18 +10,33 @@ namespace Authentication.Bff.Api.Controllers;
 
 [ApiController]
 [Route("api")]
+[ApiExplorerSettings(IgnoreApi = true)]
 public sealed class BffProxyController : ControllerBase
 {
     private readonly LoginService _login;
     private readonly IHttpClientFactory _http;
     private readonly IConfiguration _config;
-    private readonly NotificationPublisher _publisher;   // add
-    public BffProxyController(LoginService login, IHttpClientFactory http, IConfiguration config, NotificationPublisher publisher)
+    private readonly NotificationPublisher _publisher;
+    private readonly ClaimsService _claims;
+    private readonly SqlCommandExecutor _sql;
+    private readonly IHostEnvironment _env;
+
+    public BffProxyController(
+        LoginService login,
+        IHttpClientFactory http,
+        IConfiguration config,
+        NotificationPublisher publisher,
+        ClaimsService claims,
+        SqlCommandExecutor sql,
+        IHostEnvironment env)
     {
         _login = login;
         _http = http;
         _config = config;
         _publisher = publisher;
+        _claims = claims;
+        _sql = sql;
+        _env = env;
     }
 
     [HttpGet("{**path}")]
@@ -28,11 +46,12 @@ public sealed class BffProxyController : ControllerBase
     public async Task<IActionResult> Forward(string path)
     {
         if (!TryReadSession(out var sessionId, out var rawToken))
-            return Unauthorized();
+            return Unauthorized(new { message = "No BFF session cookie. Sign in on the UI (localhost:5280)." });
         var accessToken = await _login.GetAccessTokenAsync(sessionId, rawToken);
         if (string.IsNullOrWhiteSpace(accessToken))
-            return Unauthorized();
+            return Unauthorized(new { message = "Session found but JWT could not be created. Sign out and sign in again." });
 
+        Request.EnableBuffering();
         var target = $"{ResolveDownstream(path)}{Request.QueryString}";
         var method = new HttpMethod(Request.Method);
         using var message = new HttpRequestMessage(method, target);
@@ -51,8 +70,15 @@ public sealed class BffProxyController : ControllerBase
         {
             response = await client.SendAsync(message);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
+            if (_env.IsDevelopment())
+            {
+                Request.Body.Position = 0;
+                var local = await TryLocalAsync(path);
+                if (local is not null)
+                    return local;
+            }
             return StatusCode(502, new { message = $"Downstream unreachable ({target}). {ex.Message}" });
         }
 
@@ -69,6 +95,109 @@ public sealed class BffProxyController : ControllerBase
                 Content = body,
                 ContentType = response.Content.Headers.ContentType?.ToString() ?? "application/json"
             };
+        }
+    }
+
+    private async Task<IActionResult?> TryLocalAsync(string path)
+    {
+        var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+            return null;
+        var root = parts[0];
+        var method = Request.Method;
+
+        if (root.Equals("claims", StringComparison.OrdinalIgnoreCase))
+        {
+            if (HttpMethods.IsGet(method) && parts.Length == 1)
+                return Ok(await _claims.GetAllAsync());
+            if (HttpMethods.IsPost(method) && parts.Length == 1)
+            {
+                var req = await ReadJsonAsync<CreateClaimRequest>();
+                if (req is null)
+                    return BadRequest(new { message = "Invalid claim body." });
+                var created = await _claims.CreateAsync(req);
+                await TryPublishEventAsync(path, method, System.Text.Json.JsonSerializer.Serialize(created));
+                return Ok(created);
+            }
+            if (parts.Length >= 2 && int.TryParse(parts[1], out var claimId))
+            {
+                if (parts.Length >= 3 && parts[2].Equals("approve", StringComparison.OrdinalIgnoreCase) && HttpMethods.IsPost(method))
+                {
+                    var claim = await _claims.ApproveAsync(claimId);
+                    if (claim is null)
+                        return BadRequest(new { message = "Claim was not found or is not open." });
+                    await TryPublishEventAsync(path, method, System.Text.Json.JsonSerializer.Serialize(claim));
+                    return Ok(claim);
+                }
+                if (HttpMethods.IsDelete(method))
+                {
+                    var deleted = await _claims.DeleteAsync(claimId);
+                    if (deleted == 0)
+                        return NotFound();
+                    await TryPublishEventAsync(path, method, "");
+                    return NoContent();
+                }
+            }
+        }
+
+        if (root.Equals("claimants", StringComparison.OrdinalIgnoreCase))
+        {
+            if (HttpMethods.IsGet(method) && parts.Length == 1)
+                return Ok(await _claims.GetClaimantsAsync());
+            if (HttpMethods.IsPost(method) && parts.Length == 1)
+            {
+                var req = await ReadJsonAsync<CreateClaimantRequest>();
+                if (req is null)
+                    return BadRequest(new { message = "Invalid claimant body." });
+                var created = await _claims.CreateClaimantAsync(req);
+                await TryPublishEventAsync(path, method, System.Text.Json.JsonSerializer.Serialize(created));
+                return Ok(created);
+            }
+        }
+
+        if (root.Equals("policies", StringComparison.OrdinalIgnoreCase))
+        {
+            if (HttpMethods.IsGet(method) && parts.Length == 1)
+            {
+                var rows = await _sql.QueryAsync<InsurancePolicyDto>("""
+                    SELECT PolicyId, PolicyNumber, HolderName, ProductName, Premium, Status
+                    FROM dbo.InsurancePolicies ORDER BY PolicyId DESC
+                    """);
+                return Ok(rows);
+            }
+            if (HttpMethods.IsPost(method) && parts.Length == 1)
+            {
+                var req = await ReadJsonAsync<UpsertPolicyRequest>();
+                if (req is null)
+                    return BadRequest(new { message = "Invalid policy body." });
+                await _sql.ExecuteAsync(
+                    """
+                    INSERT INTO dbo.InsurancePolicies (PolicyNumber, HolderName, ProductName, Premium, Status)
+                    VALUES (@PolicyNumber, @HolderName, @ProductName, @Premium, @Status)
+                    """,
+                    req);
+                var created = await _sql.QuerySingleAsync<InsurancePolicyDto>(
+                    "SELECT TOP 1 PolicyId, PolicyNumber, HolderName, ProductName, Premium, Status FROM dbo.InsurancePolicies WHERE PolicyNumber = @PolicyNumber",
+                    new { req.PolicyNumber });
+                await TryPublishEventAsync(path, method, System.Text.Json.JsonSerializer.Serialize(created));
+                return Ok(created);
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<T?> ReadJsonAsync<T>()
+    {
+        try
+        {
+            return await System.Text.Json.JsonSerializer.DeserializeAsync<T>(
+                Request.Body,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch
+        {
+            return default;
         }
     }
 

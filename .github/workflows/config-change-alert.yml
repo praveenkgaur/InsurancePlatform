@@ -1,0 +1,114 @@
+# Warns on PRs that touch config or Azure CD. Does not deploy.
+# If Production json or deploy-azure.yml changes, add label azure-config-ack to pass.
+name: Azure config alert
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main, SP01.01.00.00]
+
+jobs:
+  alert:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: List config files in this PR
+        id: detect
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mapfile -t ALL < <(git diff --name-only "$BASE"..."$HEAD" | sort -u)
+          CONFIG=()
+          GATED=()
+          for f in "${ALL[@]}"; do
+            case "$f" in
+              *.github/workflows/deploy-azure.yml|.github/workflows/deploy-azure.yml)
+                CONFIG+=("$f"); GATED+=("$f") ;;
+              */appsettings.Production.json|appsettings.Production.json)
+                CONFIG+=("$f"); GATED+=("$f") ;;
+              */appsettings.json|appsettings.json)
+                CONFIG+=("$f") ;;
+              */appsettings.Development.json|appsettings.Development.json)
+                CONFIG+=("$f") ;;
+            esac
+          done
+          {
+            echo "count=${#CONFIG[@]}"
+            echo "gated=${#GATED[@]}"
+            echo "files<<EOF"
+            printf '%s\n' "${CONFIG[@]}"
+            echo "EOF"
+            echo "gated_files<<EOF"
+            printf '%s\n' "${GATED[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "Changed config files (${#CONFIG[@]}):"
+          printf '  %s\n' "${CONFIG[@]:-none}"
+
+      - name: Comment on PR
+        if: steps.detect.outputs.count != '0'
+        uses: actions/github-script@v7
+        env:
+          CONFIG_FILES: ${{ steps.detect.outputs.files }}
+          GATED_FILES: ${{ steps.detect.outputs.gated_files }}
+        with:
+          script: |
+            const files = (process.env.CONFIG_FILES || '').trim().split('\n').filter(Boolean);
+            const gated = (process.env.GATED_FILES || '').trim().split('\n').filter(Boolean);
+            const marker = '<!-- azure-config-alert -->';
+            const body = `${marker}
+            ## Azure configuration check
+
+            This PR changes **configuration or CD files**. \`appsettings.Production.json\` only overlays settings. **Merged code still deploys** if CD runs.
+
+            **Changed:**
+            ${files.map(f => `- \`${f}\``).join('\n')}
+
+            ${gated.length ? `**Needs your acknowledgment** (Production json or Azure deploy workflow):
+            ${gated.map(f => `- \`${f}\``).join('\n')}
+
+            Add the label \`azure-config-ack\` on this PR after you confirm Azure hosts, CORS, and App Settings are still correct.` : `No Production json / deploy-azure.yml change. Still review localhost vs Azure URLs in \`appsettings.json\`.`}
+
+            **Remember:** a push to \`main\` (or **Run workflow** on Deploy Azure App Service) publishes App Service. \`SP01.01.00.00\` does not auto-deploy.`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
+
+      - name: Require azure-config-ack for Production / CD workflow
+        if: steps.detect.outputs.gated != '0'
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          if echo ",$LABELS," | grep -q ',azure-config-ack,'; then
+            echo "Label azure-config-ack present. Acknowledged."
+            exit 0
+          fi
+          echo "::error::This PR changes Production json or deploy-azure.yml. Add the GitHub label azure-config-ack after you have reviewed Azure impact."
+          exit 1
