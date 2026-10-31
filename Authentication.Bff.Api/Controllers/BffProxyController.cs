@@ -56,7 +56,11 @@ public sealed class BffProxyController : ControllerBase
         var method = new HttpMethod(Request.Method);
         using var message = new HttpRequestMessage(method, target);
         message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-       
+
+        var apimKey = _config["Apim:SubscriptionKey"];
+        if (!string.IsNullOrWhiteSpace(apimKey))
+            message.Headers.TryAddWithoutValidation("Ocp-Apim-Subscription-Key", apimKey);
+
         if (Request.ContentLength is > 0 || !string.IsNullOrEmpty(Request.ContentType))
         {
             message.Content = new StreamContent(Request.Body);

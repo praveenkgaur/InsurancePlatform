@@ -41,7 +41,11 @@ public sealed class HealthController : ControllerBase
             var health = $"{baseUrl}/health";
             try
             {
-                using var response = await client.GetAsync(health, cancellationToken);
+                using var request = new HttpRequestMessage(HttpMethod.Get, health);
+                var apimKey = _config["Apim:SubscriptionKey"];
+                if (!string.IsNullOrWhiteSpace(apimKey))
+                    request.Headers.TryAddWithoutValidation("Ocp-Apim-Subscription-Key", apimKey);
+                using var response = await client.SendAsync(request, cancellationToken);
                 rows.Add(new { name, url = baseUrl, health, ok = response.IsSuccessStatusCode, status = (int)response.StatusCode });
             }
             catch (Exception ex)
