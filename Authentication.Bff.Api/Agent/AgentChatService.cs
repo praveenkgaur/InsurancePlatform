@@ -139,6 +139,22 @@ namespace Authentication.Bff.Api.Agent
                 || ContainsAny(text, "claim", "file", "loss", "onboard")
                 || !string.IsNullOrWhiteSpace(ExtractClaimNumber(request.Message ?? ""));
 
+            steps.Add(new AgentStepDto
+            {
+                AgentKey = "Coordinator",
+                DisplayName = _config["Agent:Orchestrator"] ?? "Coordinator",
+                Status = "done",
+                Message = "Assigned work: Claimant agent, then Policy agent, then Claim agent. They run one after another, not in parallel.",
+                Utc = DateTime.UtcNow
+            });
+            board.Handoffs.Add(new HandoffDto
+            {
+                From = "Coordinator",
+                To = "Claimant",
+                Reason = "Intake complete. Start Claimant agent first.",
+                Utc = DateTime.UtcNow
+            });
+
             // Coordinator: only run what the utterance needs. Claim still requires claimant+policy on the board.
             if (AgentEnabled("Claimant") && (wantClaimant || wantClaim || wantPolicy))
             {
