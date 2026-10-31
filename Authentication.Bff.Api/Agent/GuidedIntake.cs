@@ -31,15 +31,15 @@ namespace Authentication.Bff.Api.Agent
                 StepPolicy => new AgentIntakeDto
                 {
                     Step = StepPolicy,
-                    Prompt = prompt ?? "Claimant is on the board. What is the policy number? Example: SKPK_POL_1",
-                    Watermark = "Policy number. Example: SKPK_POL_1",
+                    Prompt = prompt ?? "Claimant is on the board. What is the policy number? Any value, e.g. POL-2001 or SKPK_POL_1",
+                    Watermark = "Policy number (any value)",
                     Help = "Step 2 of 3 — holder defaults to the claimant on the board. Optional: product, premium."
                 },
                 StepClaim => new AgentIntakeDto
                 {
                     Step = StepClaim,
-                    Prompt = prompt ?? "Policy is on the board. Claim number and amount? Example: SKPK_CLAIM_01 amount 5000",
-                    Watermark = "Claim number and amount. Example: SKPK_CLAIM_01 amount 5000",
+                    Prompt = prompt ?? "Policy is on the board. Claim number and amount? Any claim number, then amount 5000",
+                    Watermark = "Claim number and amount (any number)",
                     Help = "Step 3 of 3 — then Create runs."
                 },
                 StepRun => new AgentIntakeDto
@@ -59,8 +59,8 @@ namespace Authentication.Bff.Api.Agent
                 _ => new AgentIntakeDto
                 {
                     Step = StepClaimant,
-                    Prompt = prompt ?? "What is the claimant full name? Example: SKPK",
-                    Watermark = "Claimant full name. Example: SKPK",
+                    Prompt = prompt ?? "What is the claimant full name? Any name, e.g. claimant_1011 or Priya",
+                    Watermark = "Claimant full name (any value)",
                     Help = "Step 1 of 3 — person first. Optional: email, phone."
                 }
             };
@@ -75,14 +75,14 @@ namespace Authentication.Bff.Api.Agent
 
             if (string.IsNullOrWhiteSpace(board.Claimant.FullName))
             {
-                return Incomplete(board, StepClaimant, "What is the claimant full name? Example: SKPK");
+                return Incomplete(board, StepClaimant, "What is the claimant full name? Any name is fine.");
             }
 
             var nameGuard = guardrails.Claimant(board.Claimant.FullName, board.Claimant.Email, board.Claimant.Phone);
             if (!nameGuard.Ok)
             {
                 board.Claimant.FullName = "";
-                return Incomplete(board, StepClaimant, nameGuard.Message + " Example: SKPK");
+                return Incomplete(board, StepClaimant, nameGuard.Message);
             }
 
             board.Claimant.Status = string.IsNullOrWhiteSpace(board.Claimant.Status) || board.Claimant.Status == "empty"
@@ -94,7 +94,7 @@ namespace Authentication.Bff.Api.Agent
                 return Incomplete(
                     board,
                     StepPolicy,
-                    $"Claimant {board.Claimant.FullName} is on the board. What is the policy number? Example: SKPK_POL_1");
+                    $"Claimant {board.Claimant.FullName} is on the board. What is the policy number? Any value is fine.");
             }
 
             var holder = string.IsNullOrWhiteSpace(board.Claimant.FullName) ? "Pending" : board.Claimant.FullName;
@@ -104,7 +104,7 @@ namespace Authentication.Bff.Api.Agent
             if (!policyGuard.Ok)
             {
                 board.Policy.PolicyNumber = "";
-                return Incomplete(board, StepPolicy, policyGuard.Message + " Example: SKPK_POL_1");
+                return Incomplete(board, StepPolicy, policyGuard.Message);
             }
 
             board.Policy.HolderName = holder;
@@ -119,7 +119,7 @@ namespace Authentication.Bff.Api.Agent
                 return Incomplete(
                     board,
                     StepClaim,
-                    $"Policy {board.Policy.PolicyNumber} noted (holder {holder}). Claim number and amount? Example: SKPK_CLAIM_01 amount 5000");
+                    $"Policy {board.Policy.PolicyNumber} noted (holder {holder}). Claim number and amount? Any claim number, then amount 5000");
             }
 
             return new GuidedIntakeResult
@@ -146,40 +146,52 @@ namespace Authentication.Bff.Api.Agent
             if (text.Length == 0)
                 return;
 
-            var named = ExtractClaimantName(text);
-            if (!string.IsNullOrWhiteSpace(named))
-                SetClaimantName(board, named);
-            else if (string.IsNullOrWhiteSpace(board.Claimant.FullName)
-                     && IsBareToken(text)
-                     && !LooksLikePolicyNumber(text)
-                     && !LooksLikeClaimNumber(text))
-                SetClaimantName(board, text);
-
-            var policy = ExtractPolicyNumber(text);
-            if (!string.IsNullOrWhiteSpace(policy))
-                SetPolicyNumber(board, policy);
-            else if (string.IsNullOrWhiteSpace(board.Policy.PolicyNumber)
-                     && !string.IsNullOrWhiteSpace(board.Claimant.FullName)
-                     && IsBareToken(text)
-                     && LooksLikePolicyNumber(text))
-                SetPolicyNumber(board, text);
-
-            var claimNumber = ExtractClaimNumber(text);
-            if (!string.IsNullOrWhiteSpace(claimNumber))
-                SetClaimNumber(board, claimNumber);
-            else if (string.IsNullOrWhiteSpace(board.Claim.ClaimNumber)
-                     && !string.IsNullOrWhiteSpace(board.Policy.PolicyNumber)
-                     && IsBareToken(text.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "")
-                     && LooksLikeClaimNumber(text))
-                SetClaimNumber(board, ExtractClaimNumber(text).Length > 0 ? ExtractClaimNumber(text) : FirstToken(text));
+            var email = ExtractEmail(text);
+            if (!string.IsNullOrWhiteSpace(email))
+                board.Claimant.Email = email;
+            var phone = ExtractPhone(text);
+            if (!string.IsNullOrWhiteSpace(phone))
+                board.Claimant.Phone = phone;
 
             var amount = ExtractAmount(text);
             if (amount is not null)
                 board.Claim.Amount = amount;
 
-            var email = ExtractEmail(text);
-            if (!string.IsNullOrWhiteSpace(email))
-                board.Claimant.Email = email;
+            var named = ExtractClaimantName(text);
+            var policy = ExtractPolicyNumber(text);
+            var claimNumber = ExtractClaimNumber(text);
+            if (!string.IsNullOrWhiteSpace(named))
+                SetClaimantName(board, named);
+            if (!string.IsNullOrWhiteSpace(policy))
+                SetPolicyNumber(board, policy);
+            if (!string.IsNullOrWhiteSpace(claimNumber))
+                SetClaimNumber(board, claimNumber);
+
+            var field = FirstField(text);
+            if (string.IsNullOrWhiteSpace(field) || field.Contains('@'))
+                return;
+
+            if (string.IsNullOrWhiteSpace(board.Claimant.FullName))
+            {
+                SetClaimantName(board, field);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(board.Policy.PolicyNumber)
+                && string.IsNullOrWhiteSpace(policy)
+                && !LooksLikeClaimantToken(field))
+            {
+                SetPolicyNumber(board, field);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(board.Claim.ClaimNumber)
+                && string.IsNullOrWhiteSpace(claimNumber)
+                && !LooksLikeClaimantToken(field)
+                && !LooksLikePolicyNumber(field))
+            {
+                SetClaimNumber(board, field);
+            }
         }
 
         private static void SetClaimantName(CaseBoardDto board, string name)
@@ -239,8 +251,11 @@ namespace Authentication.Bff.Api.Agent
         {
             var m = Regex.Match(text, @"claim\s*number\s*(?:[:\-]+|\bis\b)\s*([A-Za-z0-9_\-]+)", RegexOptions.IgnoreCase);
             if (m.Success)
-                return m.Groups[1].Value.Trim();
-            var token = FirstToken(text);
+            {
+                var value = m.Groups[1].Value.Trim();
+                return LooksLikeClaimantToken(value) ? "" : value;
+            }
+            var token = FirstField(text);
             return LooksLikeClaimNumber(token) ? token : "";
         }
 
@@ -268,16 +283,36 @@ namespace Authentication.Bff.Api.Agent
             }
         }
 
-        private static bool IsBareToken(string text) =>
-            Regex.IsMatch((text ?? "").Trim(), @"^[A-Za-z][A-Za-z0-9_\-]{0,40}$");
+        private static string ExtractPhone(string text)
+        {
+            var m = Regex.Match(text ?? "", @"\+?[0-9]{10,15}");
+            return m.Success ? m.Value : "";
+        }
 
         private static bool LooksLikePolicyNumber(string text) =>
-            Regex.IsMatch(text.Trim(), @"POL", RegexOptions.IgnoreCase);
+            Regex.IsMatch((text ?? "").Trim(), @"POL", RegexOptions.IgnoreCase);
 
-        private static bool LooksLikeClaimNumber(string text) =>
-            Regex.IsMatch(text.Trim(), @"CLAIM|CLM", RegexOptions.IgnoreCase);
+        private static bool LooksLikeClaimNumber(string text)
+        {
+            var t = (text ?? "").Trim();
+            if (LooksLikeClaimantToken(t))
+                return false;
+            return Regex.IsMatch(t, @"(_|-|^)(CLAIM|CLM)(_|-|[0-9])", RegexOptions.IgnoreCase)
+                || Regex.IsMatch(t, @"^(CLAIM|CLM)[_-][A-Za-z0-9_\-]+$", RegexOptions.IgnoreCase);
+        }
 
-        private static string FirstToken(string text) =>
-            (text ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+        private static bool LooksLikeClaimantToken(string text) =>
+            Regex.IsMatch((text ?? "").Trim(), @"^claimant($|[^A-Za-z])", RegexOptions.IgnoreCase);
+
+        private static string FirstField(string text)
+        {
+            var part = (text ?? "").Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .FirstOrDefault(s => s.Length > 0 && !s.Contains('@') && !Regex.IsMatch(s, @"^\+?[0-9]{10,15}$"))
+                ?? "";
+            if (part.Contains(' ') && !LooksLikePolicyNumber(part) && !LooksLikeClaimNumber(part))
+                return part;
+            return part.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? part;
+        }
     }
 }

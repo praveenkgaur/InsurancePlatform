@@ -6,6 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <UseAppHost>false</UseAppHost>
+    <!-- Azure IIS must not gzip files that already have Blazor SRI hashes. -->
+    <BlazorEnableCompression>false</BlazorEnableCompression>
+    <CompressionEnabled>false</CompressionEnabled>
     <!-- VS Framework MSBuild cannot load the Debug DLL under Smart App Control; see AfterBlazorWasm.targets -->
     <CustomAfterBlazorWebAssemblySdkTargets>$(MSBuildThisFileDirectory)AfterBlazorWasm.targets</CustomAfterBlazorWebAssemblySdkTargets>
   </PropertyGroup>
