@@ -3,4 +3,12 @@
     <!-- Re-apply after the Web/Wasm SDK, which can turn the apphost back on. -->
     <UseAppHost>false</UseAppHost>
   </PropertyGroup>
+  <!-- Local SK / Multi / localhost URLs must not land in Azure zips. Azure loads Production overlay only. -->
+  <ItemGroup>
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+    <Content Update="appsettings.*.local.json" CopyToPublishDirectory="Never" />
+    <Content Update="wwwroot\appsettings.Development.json" CopyToPublishDirectory="Never" />
+    <None Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+    <None Update="appsettings.*.local.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
 </Project>
