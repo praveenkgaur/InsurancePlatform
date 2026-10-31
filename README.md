@@ -36,7 +36,7 @@ Same hosts as `appsettings.Production.json` / UI `wwwroot/appsettings.Production
 
 | App | Production URL |
 |---|---|
-| UI (open this) | Azure **pk-ins-ui** → Overview → **Default domain**, then `/login` |
+| UI (open this) | https://pk-ins-ui-a7aebdgfsdecmah.southindia-01.azurewebsites.net/login |
 | BFF (UI calls only this) | https://pk-ins-bff-c7d5a5fzfsh7gzch.southindia-01.azurewebsites.net |
 | Claims | https://pk-ins-claims-gth7cvg6etb8hqa0.southindia-01.azurewebsites.net |
 | Policies | https://pk-ins-policies-cqexgrdtgwbgc9cr.southindia-01.azurewebsites.net |
