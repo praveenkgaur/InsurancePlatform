@@ -135,7 +135,7 @@ else
     private AgentIntakeDto intake = new()
     {
         Step = "Claimant",
-        Watermark = "Claimant full name. Example: SKPK",
+        Watermark = "Claimant full name (any value)",
         Help = "Step 1 of 3 — person first. Optional: email, phone."
     };
     private readonly List<ChatLine> lines = [];
@@ -147,7 +147,7 @@ else
         busy && IsMulti
             ? "Agents are creating claimant, policy, claim…"
             : (string.IsNullOrWhiteSpace(intake.Watermark)
-                ? "Claimant full name. Example: SKPK"
+                ? "Claimant full name (any value)"
                 : intake.Watermark);
 
     private string HelpText =>

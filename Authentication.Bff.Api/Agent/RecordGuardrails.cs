@@ -34,8 +34,8 @@ namespace Authentication.Bff.Api.Agent
                 || name.Equals("test", StringComparison.OrdinalIgnoreCase)
                 || name.Equals("n/a", StringComparison.OrdinalIgnoreCase))
                 return GuardResult.Fail("claimant.name", "That does not look like a person’s name.");
-            if (!Regex.IsMatch(name, @"^[\p{L}][\p{L}\p{N}\s.'-]*$"))
-                return GuardResult.Fail("claimant.name", "Name may contain letters, numbers, spaces, apostrophes, and hyphens only.");
+            if (!Regex.IsMatch(name, @"^[\p{L}][\p{L}\p{N}\s._'-]*$"))
+                return GuardResult.Fail("claimant.name", "Name may contain letters, numbers, spaces, underscores, apostrophes, and hyphens.");
 
             email = string.IsNullOrWhiteSpace(email) ? "" : email.Trim();
             if (_config.GetValue("Agent:Guardrails:RequireEmailOnClaimant", false) && email.Length == 0)
