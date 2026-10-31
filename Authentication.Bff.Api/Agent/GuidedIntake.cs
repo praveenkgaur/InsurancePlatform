@@ -39,8 +39,8 @@ namespace Authentication.Bff.Api.Agent
                 {
                     Step = StepClaim,
                     Prompt = prompt ?? "Policy is on the board. Claim number and amount? Any claim number, then amount 5000",
-                    Watermark = "Claim number and amount (any number)",
-                    Help = "Step 3 of 3 — then Create runs."
+                    Watermark = "CLAIM_1540, 3500",
+                    Help = "Step 3 of 3 — id starting with a letter, then comma, then amount."
                 },
                 StepRun => new AgentIntakeDto
                 {
@@ -61,7 +61,7 @@ namespace Authentication.Bff.Api.Agent
                     Step = StepClaimant,
                     Prompt = prompt ?? "What is the claimant full name? Any name, e.g. claimant_1011 or Priya",
                     Watermark = "Claimant full name (any value)",
-                    Help = "Step 1 of 3 — person first. Optional: email, phone."
+                    Help = "Step 1 of 3 — name, then comma email, comma phone. Name must start with a letter."
                 }
             };
 
@@ -119,7 +119,7 @@ namespace Authentication.Bff.Api.Agent
                 return Incomplete(
                     board,
                     StepClaim,
-                    $"Policy {board.Policy.PolicyNumber} noted (holder {holder}). Claim number and amount? Any claim number, then amount 5000");
+                    $"Policy {board.Policy.PolicyNumber} noted (holder {holder}). Claim number and amount? Example: CLAIM_1540, 3500");
             }
 
             return new GuidedIntakeResult
@@ -146,52 +146,43 @@ namespace Authentication.Bff.Api.Agent
             if (text.Length == 0)
                 return;
 
-            var email = ExtractEmail(text);
-            if (!string.IsNullOrWhiteSpace(email))
-                board.Claimant.Email = email;
-            var phone = ExtractPhone(text);
-            if (!string.IsNullOrWhiteSpace(phone))
-                board.Claimant.Phone = phone;
-
-            var amount = ExtractAmount(text);
-            if (amount is not null)
-                board.Claim.Amount = amount;
-
-            var named = ExtractClaimantName(text);
-            var policy = ExtractPolicyNumber(text);
-            var claimNumber = ExtractClaimNumber(text);
-            if (!string.IsNullOrWhiteSpace(named))
-                SetClaimantName(board, named);
-            if (!string.IsNullOrWhiteSpace(policy))
-                SetPolicyNumber(board, policy);
-            if (!string.IsNullOrWhiteSpace(claimNumber))
-                SetClaimNumber(board, claimNumber);
-
-            var field = FirstField(text);
-            if (string.IsNullOrWhiteSpace(field) || field.Contains('@'))
-                return;
-
-            if (string.IsNullOrWhiteSpace(board.Claimant.FullName))
+            foreach (var token in SplitCsv(text))
             {
-                SetClaimantName(board, field);
-                return;
+                if (token.Contains('@'))
+                {
+                    var email = ExtractEmail(token);
+                    if (!string.IsNullOrWhiteSpace(email))
+                        board.Claimant.Email = email;
+                    continue;
+                }
+
+                if (IsPhone(token))
+                {
+                    board.Claimant.Phone = Regex.Replace(token, @"\s+", "");
+                    continue;
+                }
+
+                if (TryMoney(token, out var money))
+                {
+                    if (!string.IsNullOrWhiteSpace(board.Claimant.FullName))
+                        board.Claim.Amount = money;
+                    continue;
+                }
+
+                if (!StartsWithLetter(token))
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(board.Claimant.FullName))
+                    SetClaimantName(board, token);
+                else if (string.IsNullOrWhiteSpace(board.Policy.PolicyNumber))
+                    SetPolicyNumber(board, token);
+                else if (string.IsNullOrWhiteSpace(board.Claim.ClaimNumber))
+                    SetClaimNumber(board, token);
             }
 
-            if (string.IsNullOrWhiteSpace(board.Policy.PolicyNumber)
-                && string.IsNullOrWhiteSpace(policy)
-                && !LooksLikeClaimantToken(field))
-            {
-                SetPolicyNumber(board, field);
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(board.Claim.ClaimNumber)
-                && string.IsNullOrWhiteSpace(claimNumber)
-                && !LooksLikeClaimantToken(field)
-                && !LooksLikePolicyNumber(field))
-            {
-                SetClaimNumber(board, field);
-            }
+            var labeledAmount = ExtractAmount(text);
+            if (labeledAmount is not null)
+                board.Claim.Amount = labeledAmount;
         }
 
         private static void SetClaimantName(CaseBoardDto board, string name)
@@ -261,10 +252,48 @@ namespace Authentication.Bff.Api.Agent
 
         public static decimal? ExtractAmount(string text)
         {
-            var m = Regex.Match(text, @"amount\s*[:\-]?\s*([0-9]+(?:\.[0-9]+)?)", RegexOptions.IgnoreCase);
+            var m = Regex.Match(text ?? "", @"amount\s*[:\-]?\s*([0-9]+(?:\.[0-9]+)?)", RegexOptions.IgnoreCase);
             if (m.Success && decimal.TryParse(m.Groups[1].Value, out var amount))
                 return amount;
+            foreach (var token in SplitCsv(text ?? "").AsEnumerable().Reverse())
+            {
+                if (TryMoney(token, out var money))
+                    return money;
+            }
             return null;
+        }
+
+        private static List<string> SplitCsv(string text)
+        {
+            var parts = text.Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .ToList();
+            if (parts.Count <= 1)
+            {
+                parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .Where(s => s.Length > 0)
+                    .ToList();
+            }
+            return parts;
+        }
+
+        private static bool StartsWithLetter(string token) =>
+            token.Length > 0 && char.IsLetter(token[0]);
+
+        private static bool IsPhone(string token) =>
+            Regex.IsMatch(Regex.Replace(token, @"[\s\-]", ""), @"^\+?[0-9]{10,15}$");
+
+        private static bool TryMoney(string token, out decimal money)
+        {
+            money = 0;
+            var part = token.Trim().TrimStart('-');
+            if (!Regex.IsMatch(part, @"^[0-9]+(?:\.[0-9]+)?$"))
+                return false;
+            if (part.Length is >= 10 and <= 15)
+                return false;
+            return decimal.TryParse(part, out money) && money > 0;
         }
 
         private static string ExtractEmail(string text)
