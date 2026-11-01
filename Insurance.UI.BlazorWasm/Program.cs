@@ -10,7 +10,14 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-var bff = builder.Configuration["BffBaseUrl"] ?? "http://localhost:5281";
+var useApim = builder.Configuration.GetValue("UseApim", false);
+var bff = (useApim
+        ? builder.Configuration["ApimBffBaseUrl"]
+        : builder.Configuration["BffBaseUrl"])
+    ?? builder.Configuration["BffBaseUrl"]
+    ?? "http://localhost:5281";
+if (!bff.EndsWith('/'))
+    bff += "/";
 
 builder.Services.AddTransient<CookieHandler>();
 

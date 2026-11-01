@@ -57,9 +57,12 @@ public sealed class BffProxyController : ControllerBase
         using var message = new HttpRequestMessage(method, target);
         message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
 
-        var apimKey = _config["Apim:SubscriptionKey"];
-        if (!string.IsNullOrWhiteSpace(apimKey))
-            message.Headers.TryAddWithoutValidation("Ocp-Apim-Subscription-Key", apimKey);
+        if (DownstreamUrls.UseApim(_config))
+        {
+            var apimKey = _config["Apim:SubscriptionKey"];
+            if (!string.IsNullOrWhiteSpace(apimKey))
+                message.Headers.TryAddWithoutValidation("Ocp-Apim-Subscription-Key", apimKey);
+        }
 
         if (Request.ContentLength is > 0 || !string.IsNullOrEmpty(Request.ContentType))
         {
@@ -215,11 +218,20 @@ public sealed class BffProxyController : ControllerBase
         }
 
         var root = path.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-        var host = root.Equals("policies", StringComparison.OrdinalIgnoreCase)
-            ? _config["Downstream:Policies"] ?? "http://localhost:5284"
+        var name = root.Equals("policies", StringComparison.OrdinalIgnoreCase)
+            ? "Policies"
             : root.Equals("billing", StringComparison.OrdinalIgnoreCase)
-                ? _config["Downstream:Billing"] ?? "http://localhost:5285"
-                : _config["Downstream:Claims"] ?? "http://localhost:5283";
+                ? "Billing"
+                : "Claims";
+        var host = DownstreamUrls.BaseUrl(_config, name);
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            host = name == "Policies"
+                ? "http://localhost:5284"
+                : name == "Billing"
+                    ? "http://localhost:5285"
+                    : "http://localhost:5283";
+        }
         return $"{host.TrimEnd('/')}/api/{path}";
     }
 
