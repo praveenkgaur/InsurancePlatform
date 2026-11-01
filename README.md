@@ -32,7 +32,9 @@ dotnet run --project Insurance.UI.BlazorWasm
 
 ## Production URLs (Azure App Service)
 
-Same hosts as `appsettings.Production.json` / UI `wwwroot/appsettings.Production.json`. Stamps are part of the hostname; do not use `https://pk-ins-bff.azurewebsites.net` without the stamp.
+Same hosts as `Authentication.Bff.Api/appsettings.Production.json` and `Insurance.UI.BlazorWasm/wwwroot/appsettings.Production.json`. Stamps are part of the hostname; do not use `https://pk-ins-bff.azurewebsites.net` without the stamp.
+
+**Current mode:** `UseApim` is **false**. The browser talks to the BFF App Service; the BFF talks to Claims, Policies, and Billing App Services.
 
 | App | Production URL |
 |---|---|
@@ -44,3 +46,5 @@ Same hosts as `appsettings.Production.json` / UI `wwwroot/appsettings.Production
 | SignalR hub | https://pk-ins-bff-c7d5a5fzfsh7gzch.southindia-01.azurewebsites.net/hubs/notifications |
 
 BFF CORS allows any `https://pk-ins-ui*.azurewebsites.net` origin. Ocelot is **not** deployed (`UseGateway: false`).
+
+Optional APIM (off): keep both URL sets in config and flip `UseApim`. UI uses `ApimBffBaseUrl` (`https://pk-ins-apim-dev.azure-api.net/bff`) when true; BFF uses `Apim:Gateway` plus suffixes `claims` / `policies` / `billing`. SignalR hub stays on the BFF stamp. After deleting APIM, leave `UseApim` false or DNS for `*.azure-api.net` will fail.
