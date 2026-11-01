@@ -24,17 +24,12 @@ public sealed class HealthController : ControllerBase
     {
         var client = _http.CreateClient("Gateway");
         var rows = new List<object>();
-        foreach (var (name, key) in new[]
-                 {
-                     ("Claims", "Downstream:Claims"),
-                     ("Policies", "Downstream:Policies"),
-                     ("Billing", "Downstream:Billing")
-                 })
+        foreach (var name in new[] { "Claims", "Policies", "Billing" })
         {
-            var baseUrl = (_config[key] ?? "").Trim().TrimEnd('/');
+            var baseUrl = DownstreamUrls.BaseUrl(_config, name);
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
-                rows.Add(new { name, url = "(missing)", ok = false, error = $"Set {key.Replace(":", "__")} on the BFF (long Default domain, not *.azurewebsites.net without stamp)." });
+                rows.Add(new { name, url = "(missing)", ok = false, error = DownstreamUrls.UseApim(_config) ? "Set Apim__Gateway on the BFF." : $"Set Downstream__{name} on the BFF." });
                 continue;
             }
 
@@ -42,9 +37,12 @@ public sealed class HealthController : ControllerBase
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, health);
-                var apimKey = _config["Apim:SubscriptionKey"];
-                if (!string.IsNullOrWhiteSpace(apimKey))
-                    request.Headers.TryAddWithoutValidation("Ocp-Apim-Subscription-Key", apimKey);
+                if (DownstreamUrls.UseApim(_config))
+                {
+                    var apimKey = _config["Apim:SubscriptionKey"];
+                    if (!string.IsNullOrWhiteSpace(apimKey))
+                        request.Headers.TryAddWithoutValidation("Ocp-Apim-Subscription-Key", apimKey);
+                }
                 using var response = await client.SendAsync(request, cancellationToken);
                 rows.Add(new { name, url = baseUrl, health, ok = response.IsSuccessStatusCode, status = (int)response.StatusCode });
             }
@@ -56,8 +54,9 @@ public sealed class HealthController : ControllerBase
 
         return Ok(new
         {
+            useApim = DownstreamUrls.UseApim(_config),
             useGateway = _config.GetValue("UseGateway", false),
-            hint = "ok:false with a short *.azurewebsites.net host means copy Overview Default domain into Downstream__Claims / Policies / Billing.",
+            hint = "Set UseApim true/false. Direct hosts are Downstream__*. APIM host is Apim__Gateway plus suffix claims|policies|billing.",
             downstream = rows
         });
     }
