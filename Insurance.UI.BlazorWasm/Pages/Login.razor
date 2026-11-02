@@ -7,6 +7,7 @@
 @inject AuthService Auth
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
+@inject IConfiguration Config
 
 <PageTitle>Login</PageTitle>
 <div class="row justify-content-center">
@@ -27,6 +28,10 @@
                 <div class="alert alert-danger">@error</div>
             }
             <button class="btn btn-primary" type="submit">Sign in</button>
+            @if (Config.GetValue("UseEntra", false))
+            {
+                <a class="btn btn-outline-primary w-100 mt-2" href="@EntraLoginUrl">Sign in with Microsoft</a>
+            }
         </EditForm>
         <p class="mt-3 small">Demo: Praveen / Password@123 (Admin). Adjuster / Password@123 (no delete).</p>
     </div>
@@ -36,7 +41,17 @@
     private string userName = "Praveen";
     private string password = "Password@123";
     private string? error;
-
+    private string EntraLoginUrl
+    {
+        get
+        {
+            var bff = (Config.GetValue("UseApim", false)
+                    ? Config["ApimBffBaseUrl"]
+                    : Config["BffBaseUrl"])
+                ?? "http://localhost:5281";
+            return $"{bff.TrimEnd('/')}/auth/entra/login";
+        }
+    }
     private async Task Submit()
     {
         error = null;
@@ -48,5 +63,39 @@
         }
         ((ApiAuthenticationStateProvider)AuthState).NotifySignedIn(user);
         Navigation.NavigateTo("/");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var entra = QueryValue(Navigation.Uri, "entra");
+        if (entra == "ok")
+        {
+            var user = await Auth.GetCurrentAsync();
+            if (user is not null)
+            {
+                ((ApiAuthenticationStateProvider)AuthState).NotifySignedIn(user);
+                Navigation.NavigateTo("/");
+            }
+            else
+                error = "Microsoft sign-in completed but no BFF session cookie. Check CORS, SameSite, and redirect host.";
+        }
+        else if (entra == "denied")
+            error = "Microsoft account is not linked to dbo.Users. Set EntraObjectId (Sql/006).";
+        else if (entra == "error")
+            error = QueryValue(Navigation.Uri, "msg") ?? "Microsoft sign-in failed.";
+    }
+
+    private static string? QueryValue(string uri, string key)
+    {
+        var query = new Uri(uri).Query;
+        if (string.IsNullOrEmpty(query))
+            return null;
+        foreach (var part in query.TrimStart('?').Split('&'))
+        {
+            var kv = part.Split('=', 2);
+            if (kv.Length == 2 && string.Equals(Uri.UnescapeDataString(kv[0]), key, StringComparison.OrdinalIgnoreCase))
+                return Uri.UnescapeDataString(kv[1]);
+        }
+        return null;
     }
 }

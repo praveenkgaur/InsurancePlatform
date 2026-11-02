@@ -58,18 +58,27 @@
                         <span class="nav-ico" aria-hidden="true">◎</span> Assistant
                     </NavLink>
                 </div>
-                <AuthorizeView Roles="Admin" Context="adminAuth">
-                    <div class="nav-section">Admin</div>
-                    <div class="nav-item px-3">
-                        <span class="nav-link muted">Administrator</span>
-                    </div>
-                </AuthorizeView>
             </Authorized>
             <NotAuthorized>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="login">Login</NavLink>
                 </div>
             </NotAuthorized>
+        </AuthorizeView>
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                <div class="nav-section">Admin</div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="users" Match="NavLinkMatch.All">
+                        <span class="nav-ico" aria-hidden="true">👤</span> Users
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3 nested">
+                    <NavLink class="nav-link" href="users/new">
+                        <span class="nav-ico" aria-hidden="true">＋</span> Create user
+                    </NavLink>
+                </div>
+            </Authorized>
         </AuthorizeView>
     </nav>
 </div>

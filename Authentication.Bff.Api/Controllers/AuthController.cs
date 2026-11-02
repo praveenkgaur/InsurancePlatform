@@ -26,6 +26,11 @@ public sealed class AuthController : ControllerBase
     {
         try
         {
+            //Entra ID login OAuth
+            if (_config.GetValue("UseEntra", false) && !_config.GetValue("Entra:AllowPasswordLogin", true))
+                return StatusCode(StatusCodes.Status403Forbidden, new ApiMessage { Message = "Password login is off (UseEntra / Entra:AllowPasswordLogin)." });
+
+             //Session cookie login
             var result = await _login.SignInAsync(request);
             if (result is null)
                 return Unauthorized(new ApiMessage { Message = "Invalid user name or password." });

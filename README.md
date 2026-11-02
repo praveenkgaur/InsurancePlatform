@@ -1,6 +1,6 @@
 # Insurance Platform (BFF cookie + Ocelot)
 
-How the UI, APIs, cookies, JWT, and HttpClientFactory run is in [Mdfiles/InsurancePlatform.HowItWorks.md](Mdfiles/InsurancePlatform.HowItWorks.md).
+How the UI, APIs, cookies, JWT, and HttpClientFactory run is in [Mdfiles/InsurancePlatform.HowItWorks.md](Mdfiles/InsurancePlatform.HowItWorks.md). Microsoft Entra ID + OAuth 2.0 (BFF, copy-paste steps, APIM) is in [Mdfiles/EntraId.OAuth2.PasteGuide.md](Mdfiles/EntraId.OAuth2.PasteGuide.md).
 
 Blazor WebAssembly talks only to `Authentication.Bff.Api`. Login sets an HttpOnly cookie (`AppSession` on HTTP, `__Host-AppSession` on HTTPS). The BFF stores the JWT and sends `Authorization: Bearer` to Claims, Policies, and Billing (`UseGateway: false` on Azure; Ocelot is optional locally).
 

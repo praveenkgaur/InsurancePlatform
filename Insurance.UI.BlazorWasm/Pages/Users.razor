@@ -1,0 +1,54 @@
+@page "/users"
+@using Insurance.Contracts.Auth
+@using Insurance.UI.BlazorWasm.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject UsersApi UsersApi
+
+<PageTitle>Users</PageTitle>
+<h1>Users</h1>
+<p class="text-muted">People who can sign in. Use <a href="users/new">Create user</a> in the left menu to add one. The server generates a temporary password; it is shown once.</p>
+
+@if (rows is null)
+{
+    <p>Loading...</p>
+}
+else if (rows.Length == 0)
+{
+    <p>No users.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>User name</th>
+                <th>Display name</th>
+                <th>Roles</th>
+                <th>Entra object id</th>
+                <th>Active</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in rows)
+            {
+                <tr>
+                    <td>@row.UserId</td>
+                    <td>@row.UserName</td>
+                    <td>@row.DisplayName</td>
+                    <td>@string.Join(", ", row.Roles)</td>
+                    <td>@(row.EntraObjectId is null ? "—" : row.EntraObjectId.ToString())</td>
+                    <td>@(row.IsActive ? "Yes" : "No")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private UserAdminDto[]? rows;
+
+    protected override async Task OnInitializedAsync() =>
+        rows = await UsersApi.ListAsync() ?? [];
+}

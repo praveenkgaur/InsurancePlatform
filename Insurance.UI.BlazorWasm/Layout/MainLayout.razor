@@ -9,6 +9,7 @@
 @inject NavigationManager Navigation
 @inject NotificationHubClient Hub
 @inject NotificationApi NoticeApi
+@inject IConfiguration Config
 
 <div class="page">
     <div class="sidebar">
@@ -155,9 +156,11 @@
     private async Task Logout()
     {
         userMenuOpen = false;
-        await Auth.LogoutAsync();
         ((ApiAuthenticationStateProvider)AuthState).NotifySignedOut();
-        Navigation.NavigateTo("/login");
+        await Auth.LogoutAsync();
+        // Entra logout force-loads the BFF, which redirects to Microsoft then /login.
+        if (!Config.GetValue("UseEntra", false))
+            Navigation.NavigateTo("/login");
     }
 
     private static string Preview(string message)
