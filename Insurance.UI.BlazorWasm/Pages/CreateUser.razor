@@ -1,0 +1,84 @@
+@page "/users/new"
+@using Insurance.Contracts.Auth
+@using Insurance.UI.BlazorWasm.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject UsersApi UsersApi
+
+<PageTitle>Create user</PageTitle>
+<h1>Create user</h1>
+<p class="text-muted">The BFF generates a 12-character temporary password (upper, lower, digit, symbol) with <code>RandomNumberGenerator</code>, then stores only a PBKDF2 hash. Copy the password when it appears — it is not shown again.</p>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="alert @(saved ? "alert-success" : "alert-warning")">
+        @message
+        @if (!string.IsNullOrWhiteSpace(temporaryPassword))
+        {
+            <div class="mt-2"><strong>Temporary password:</strong> <code>@temporaryPassword</code></div>
+        }
+    </div>
+}
+
+<div class="card mb-4" style="max-width: 720px;">
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-6">
+                <label class="form-label">User name</label>
+                <input class="form-control" @bind="form.UserName" placeholder="e.g. Maya" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Display name</label>
+                <input class="form-control" @bind="form.DisplayName" placeholder="Maya Patel" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Role</label>
+                <select class="form-select" @bind="form.RoleName">
+                    <option value="">Select role</option>
+                    @if (roles is not null)
+                    {
+                        @foreach (var role in roles)
+                        {
+                            <option value="@role">@role</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-12">
+                <button class="btn btn-primary" @onclick="Save" disabled="@busy">Create user</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string[]? roles;
+    private CreateUserRequest form = new();
+    private string? message;
+    private string? temporaryPassword;
+    private bool saved;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync() =>
+        roles = await UsersApi.RolesAsync() ?? [];
+
+    private async Task Save()
+    {
+        message = null;
+        temporaryPassword = null;
+        saved = false;
+        busy = true;
+        var (created, error) = await UsersApi.CreateAsync(form);
+        busy = false;
+        if (error is not null)
+        {
+            message = error;
+            return;
+        }
+
+        saved = true;
+        temporaryPassword = created!.TemporaryPassword;
+        message = $"Created {created.User.UserName} with role {string.Join(", ", created.User.Roles)}. Give them this password once.";
+        form = new CreateUserRequest();
+    }
+}

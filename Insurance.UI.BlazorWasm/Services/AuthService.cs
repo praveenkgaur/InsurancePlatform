@@ -1,14 +1,22 @@
 using System.Net.Http.Json;
 using Insurance.Contracts.Auth;
 using Insurance.Contracts.Common;
+using Microsoft.AspNetCore.Components;
 
 namespace Insurance.UI.BlazorWasm.Services;
 
 public sealed class AuthService
 {
     private readonly HttpClient _http;
+    private readonly IConfiguration _config;
+    private readonly NavigationManager _nav;
 
-    public AuthService(HttpClient http) => _http = http;
+    public AuthService(HttpClient http, IConfiguration config, NavigationManager nav)
+    {
+        _http = http;
+        _config = config;
+        _nav = nav;
+    }
 
     public async Task<(SessionUserDto? User, string? Error)> LoginAsync(string userName, string password)
     {
@@ -42,5 +50,18 @@ public sealed class AuthService
         return await response.Content.ReadFromJsonAsync<SessionUserDto>();
     }
 
-    public Task LogoutAsync() => _http.PostAsync("auth/logout", null);
+    public async Task LogoutAsync()
+    {
+        if (_config.GetValue("UseEntra", false))
+        {
+            var bff = (_config.GetValue("UseApim", false)
+                    ? _config["ApimBffBaseUrl"]
+                    : _config["BffBaseUrl"])
+                ?? "http://localhost:5281";
+            _nav.NavigateTo($"{bff.TrimEnd('/')}/auth/entra/logout", forceLoad: true);
+            return;
+        }
+
+        await _http.PostAsync("auth/logout", null);
+    }
 }

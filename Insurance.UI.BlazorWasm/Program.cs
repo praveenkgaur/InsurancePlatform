@@ -39,6 +39,7 @@ builder.Services.AddAuthorizationCore(options =>
     }
 });
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<UsersApi>();
 builder.Services.AddScoped<ClaimsService>();
 builder.Services.AddScoped<PoliciesService>();
 builder.Services.AddScoped<NotificationHubClient>();
