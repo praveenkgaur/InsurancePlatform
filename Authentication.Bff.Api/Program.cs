@@ -52,7 +52,9 @@ builder.Services
         options.CallbackPath = builder.Configuration["Entra:CallbackPath"] ?? "/signin-oidc";
         options.SignedOutCallbackPath = builder.Configuration["Entra:SignedOutCallbackPath"] ?? "/signout-oidc";
         options.ResponseType = "code";
-        options.ResponseMode = "query";
+        var local = builder.Environment.IsDevelopment();
+        // Query is for HTTP localhost (correlation cookie). Azure IIS 404s long ?code= URLs — use form_post.
+        options.ResponseMode = local ? "query" : "form_post";
         options.UsePkce = true;
         options.SaveTokens = false;
         options.GetClaimsFromUserInfoEndpoint = false;
@@ -62,7 +64,6 @@ builder.Services
         options.Scope.Add("profile");
         options.Scope.Add("email");
         options.SignInScheme = "EntraCookie";
-        var local = builder.Environment.IsDevelopment();
         options.CorrelationCookie.IsEssential = true;
         options.NonceCookie.IsEssential = true;
         options.CorrelationCookie.SecurePolicy = local ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
@@ -74,7 +75,7 @@ builder.Services
         {
             OnRedirectToIdentityProvider = ctx =>
             {
-                ctx.ProtocolMessage.ResponseMode = "query";
+                ctx.ProtocolMessage.ResponseMode = local ? "query" : "form_post";
                 return Task.CompletedTask;
             },
             OnRemoteFailure = ctx =>
