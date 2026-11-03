@@ -26,6 +26,7 @@ TestResults/
 
 ## Secrets / local
 appsettings.*.local.json
+local.settings.json
 *.pfx
 .env
 secrets.json

@@ -6,8 +6,13 @@ namespace Claims.Api.Services;
 public sealed class ClaimsService
 {
     private readonly SqlCommandExecutor _sql;
+    private readonly ClaimantCreatedClient _claimantCreated;
 
-    public ClaimsService(SqlCommandExecutor sql) => _sql = sql;
+    public ClaimsService(SqlCommandExecutor sql, ClaimantCreatedClient claimantCreated)
+    {
+        _sql = sql;
+        _claimantCreated = claimantCreated;
+    }
 
     public Task<IReadOnlyList<InsuranceClaimDto>> GetAllAsync() =>
         _sql.QueryAsync<InsuranceClaimDto>(
@@ -70,30 +75,51 @@ public sealed class ClaimsService
             new { ClaimNumber = claimNumber }) ?? throw new InvalidOperationException("Claim insert did not return a row.");
     }
 
+    private const string ClaimantSelect = """
+        SELECT ClaimantId, FullName,
+            ISNULL(FirstName, '') AS FirstName, ISNULL(LastName, '') AS LastName,
+            DateOfBirth, ISNULL(Gender, '') AS Gender,
+            ISNULL(Email, '') AS Email, ISNULL(Phone, '') AS Phone, ISNULL(AlternatePhone, '') AS AlternatePhone,
+            ISNULL(AddressLine1, '') AS AddressLine1, ISNULL(AddressLine2, '') AS AddressLine2,
+            ISNULL(City, '') AS City, ISNULL(StateName, '') AS StateName, ISNULL(PinCode, '') AS PinCode,
+            ISNULL(Country, '') AS Country, ISNULL(IdType, '') AS IdType, ISNULL(IdNumber, '') AS IdNumber,
+            ISNULL(Notes, '') AS Notes
+        FROM dbo.InsuranceClaimants
+        """;
+
     public Task<IReadOnlyList<InsuranceClaimantDto>> GetClaimantsAsync() =>
-        _sql.QueryAsync<InsuranceClaimantDto>(
-            """
-            SELECT ClaimantId, FullName, ISNULL(Email, '') AS Email, ISNULL(Phone, '') AS Phone
-            FROM dbo.InsuranceClaimants
-            ORDER BY ClaimantId DESC
-            """);
+        _sql.QueryAsync<InsuranceClaimantDto>(ClaimantSelect + " ORDER BY ClaimantId DESC");
 
     public async Task<InsuranceClaimantDto> CreateClaimantAsync(CreateClaimantRequest request)
     {
+        request.EnsureFullName();
         await _sql.ExecuteAsync(
             """
-            INSERT INTO dbo.InsuranceClaimants (FullName, Email, Phone)
-            VALUES (@FullName, @Email, @Phone)
+            INSERT INTO dbo.InsuranceClaimants
+            (
+                FullName, FirstName, LastName, DateOfBirth, Gender,
+                Email, Phone, AlternatePhone,
+                AddressLine1, AddressLine2, City, StateName, PinCode, Country,
+                IdType, IdNumber, Notes
+            )
+            VALUES
+            (
+                @FullName, @FirstName, @LastName, @DateOfBirth, @Gender,
+                @Email, @Phone, @AlternatePhone,
+                @AddressLine1, @AddressLine2, @City, @StateName, @PinCode, @Country,
+                @IdType, @IdNumber, @Notes
+            )
             """,
             request);
 
-        return await _sql.QuerySingleAsync<InsuranceClaimantDto>(
-            """
-            SELECT TOP 1 ClaimantId, FullName, ISNULL(Email, '') AS Email, ISNULL(Phone, '') AS Phone
-            FROM dbo.InsuranceClaimants
-            WHERE FullName = @FullName
-            ORDER BY ClaimantId DESC
+        var created = await _sql.QuerySingleAsync<InsuranceClaimantDto>(
+            ClaimantSelect + """
+             WHERE FullName = @FullName
+             ORDER BY ClaimantId DESC
             """,
             new { request.FullName }) ?? throw new InvalidOperationException("Claimant insert did not return a row.");
+
+        await _claimantCreated.NotifyAsync(created);
+        return created;
     }
 }

@@ -228,44 +228,114 @@ CLAIMS / POLICIES / BILLING APIs
 
 ## How it works (runtime)
 
-### Today (`UseEntra: false`)
+Both paths end the same way: **HttpOnly session cookie** on the BFF + **your API JWT** to Claims/Policies/Billing. The browser never stores the Microsoft token or the API JWT.
 
-```text
-UI POST /auth/login { userName, password }
-  → BFF LoginService: SQL password hash
-  → dbo.Sessions row + Set-Cookie
-  → UI GET /auth/me  (cookie)
-  → UI GET /api/claims  (cookie)
-  → BFF mints API JWT, calls Claims
+| | Password (normal) | Entra OAuth |
+|---|---|---|
+| Switch | Always, unless `UseEntra` and `AllowPasswordLogin=false` | `UseEntra: true` |
+| UI start | `Login.razor` **Submit** → `AuthService.LoginAsync` | Microsoft button → `GET {Bff}/auth/entra/login` |
+| BFF entry | `AuthController.Login` `POST /auth/login` | `EntraAuthController.Login` then OpenIdConnect middleware |
+| Who you are | `LoginService.SignInAsync` + `PasswordHasher.Verify` | `LoginService.SignInFromEntraAsync` (id token `oid`) |
+| Session | `SessionService.CreateAsync` + `AppendSessionCookie` | same cookie in `OnTokenValidated` |
+| After login | `ApiAuthenticationStateProvider.NotifySignedIn` | UI `/login?entra=ok` → `AuthService.GetCurrentAsync` |
+
+### Password login — method call chain
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Login as Login.razor<br/>Submit
+    participant Auth as AuthService<br/>LoginAsync
+    participant Ctrl as AuthController<br/>POST /auth/login
+    participant LS as LoginService<br/>SignInAsync
+    participant SQL as dbo.Users
+    participant Tok as TokenService<br/>CreateAccessToken
+    participant Ses as SessionService<br/>CreateAsync
+    participant Me as SessionController<br/>GET /auth/me
+    participant Proxy as BffProxyController
+
+    User->>Login: Praveen + password
+    Login->>Auth: LoginAsync(userName, password)
+    Auth->>Ctrl: POST /auth/login
+    Note over Ctrl: blocked only if UseEntra and<br/>AllowPasswordLogin = false
+    Ctrl->>LS: SignInAsync(LoginRequest)
+    LS->>SQL: SELECT user by UserName
+    LS->>LS: PasswordHasher.Verify
+    LS->>LS: LoadRolesAsync / LoadPermissionsAsync
+    LS->>Tok: CreateAccessToken + CreateRefreshToken
+    LS->>Ses: CreateAsync (dbo.Sessions)
+    LS-->>Ctrl: SessionUserDto + sessionId
+    Ctrl->>Ctrl: AppendSessionCookie (HttpOnly)
+    Ctrl-->>Auth: 200 SessionUserDto
+    Auth-->>Login: user
+    Login->>Login: NotifySignedIn + NavigateTo /
+    Login->>Me: GET /auth/me (cookie)
+    Me->>LS: GetCurrentAsync
+    Login->>Proxy: GET /api/claims (cookie)
+    Proxy->>LS: GetAccessTokenAsync
+    Proxy->>Proxy: Bearer JWT to Claims.Api
 ```
 
-### With Entra (`UseEntra: true`)
+### Entra OAuth 2.0 + OIDC — method call chain
 
-OAuth 2.0 **Authorization Code + PKCE**. OpenID Connect adds the **id token** (who you are).
+Authorization Code + PKCE. Local HTTP uses `response_mode=query`; Azure HTTPS uses `form_post` (IIS 404s a long `?code=`). `/signin-oidc` is **middleware**, not an MVC action.
 
-```text
-1. UI  GET  BffBaseUrl + /auth/entra/login     (cookie not required)
-2. BFF 302  https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize
-            ?client_id=...
-            &redirect_uri=https://<BFF-or-APIM>/signin-oidc
-            &response_type=code
-            &scope=openid profile email
-            &code_challenge=...          (PKCE)
-            &state=...
-3. User signs in at Microsoft (password / MFA). This app never sees the Microsoft password.
-4. Entra 302  redirect_uri?code=AUTH_CODE&state=...
-5. BFF  POST  Entra /token   (code + code_verifier + client_secret)
-            Entra returns id_token (+ access_token)
-6. BFF  reads oid / preferred_username from id_token
-        reads oid from the Entra id token (not from SQL)
-        links to dbo.Users (by oid, or first-time email / admin UPDATE)
-        does not invent Admin if no row exists
-        creates dbo.Sessions
-        Set-Cookie AppSession / __Host-AppSession
-        302 to UI origin  (e.g. /login?entra=1 or /)
-7. UI   GET /auth/me  with cookie   ← same as today (Step 8 in the login page)
-8. UI   GET /api/claims             ← BffProxyController unchanged (Step 9)
+```mermaid
+sequenceDiagram
+    actor User
+    participant Login as Login.razor
+    participant Btn as GET /auth/entra/login
+    participant EntraCtrl as EntraAuthController<br/>Login
+    participant OIDC as OpenIdConnect<br/>scheme Entra
+    participant AAD as login.microsoftonline.com
+    participant CB as Middleware<br/>/signin-oidc
+    participant LS as LoginService<br/>SignInFromEntraAsync
+    participant SQL as dbo.Users
+    participant Ses as SessionService<br/>CreateAsync
+    participant Me as SessionController<br/>GET /auth/me
+
+    User->>Login: Sign in with Microsoft
+    Login->>Btn: href BffBaseUrl/auth/entra/login
+    Btn->>EntraCtrl: GET Login
+    Note over EntraCtrl: 404 if UseEntra = false
+    EntraCtrl->>OIDC: Challenge("Entra")
+    OIDC->>OIDC: OnRedirectToIdentityProvider
+    OIDC->>AAD: 302 /oauth2/v2.0/authorize<br/>client_id, PKCE, redirect_uri=/signin-oidc
+    User->>AAD: Microsoft password / MFA
+    AAD->>CB: code (+ state)
+    CB->>AAD: POST /token (code + verifier + ClientSecret)
+    AAD-->>CB: id_token (oid, email)
+    CB->>CB: OnTokenValidated
+    CB->>LS: SignInFromEntraAsync(oid, email, name)
+    LS->>SQL: EntraObjectId = oid
+    alt no row
+        LS->>SQL: UserName = email, then Entra:UserMap
+        LS->>SQL: AutoProvision only if enabled
+    end
+    alt still no SQL user
+        LS-->>CB: null
+        CB->>Login: 302 /login?entra=denied
+    else linked
+        LS->>LS: LoadRolesAsync / LoadPermissionsAsync
+        LS->>Ses: CreateAsync
+        CB->>CB: Set-Cookie AppSession
+        CB->>Login: 302 /login?entra=ok
+        Login->>Login: QueryValue entra=ok
+        Login->>Me: GetCurrentAsync → GET /auth/me
+        Me->>LS: GetCurrentAsync
+        Login->>Login: NotifySignedIn + NavigateTo /
+    end
 ```
+
+### What OAuth is doing (short)
+
+1. **Authorize** — BFF (`Challenge`) sends the browser to Entra. Entra authenticates the human. This app never sees the Microsoft password.
+2. **Code** — Entra returns a one-time `code` to **the BFF** `/signin-oidc` (redirect URI in the app registration).
+3. **Token** — BFF exchanges `code` + PKCE verifier + **`Entra:ClientSecret`** at Entra `/token`. Gets **id token**. WASM never sees this.
+4. **Map** — `SignInFromEntraAsync` maps `oid` → `dbo.Users` (`EntraObjectId`, else email, else `UserMap`, else AutoProvision).
+5. **Same session as password** — `SessionService.CreateAsync` + HttpOnly cookie. APIs still get **your** JWT from `GetAccessTokenAsync`.
+
+Logout: `AuthService.LogoutAsync` → `GET /auth/entra/logout` → `EntraAuthController.Logout` → `LoginService.SignOutAsync` + `SignOut("EntraCookie","Entra")` → middleware `/signout-oidc` → UI `/login`.
 
 **Link:** Step 1 (UI button) → Step 2–5 (OIDC on BFF) → Step 6 (SQL session, same as password login) → existing `/auth/me` and proxy.
 

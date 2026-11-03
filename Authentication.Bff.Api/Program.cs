@@ -25,6 +25,8 @@ builder.Services.AddScoped<LoginService>();
 builder.Services.AddScoped<UserAdminService>();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<NotificationPublisher>();
+builder.Services.AddHttpClient<Claims.Api.Services.ClaimantCreatedClient>(client =>
+    client.Timeout = TimeSpan.FromSeconds(3));
 builder.Services.AddScoped<Claims.Api.Services.ClaimsService>();
 builder.Services.AddAuthorization();
 

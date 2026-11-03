@@ -1,10 +1,11 @@
-# CD: CI already built on main; this publishes and zips to App Service.
-# Add GitHub secrets (Download publish profile on each Web App in Azure):
+# CD: CI already built on main; this publishes and zips to App Service + Function App.
+# Add GitHub secrets (Download publish profile on each Web App / Function App in Azure):
 #   AZURE_PUBLISH_PROFILE_BFF
 #   AZURE_PUBLISH_PROFILE_CLAIMS
 #   AZURE_PUBLISH_PROFILE_POLICIES
 #   AZURE_PUBLISH_PROFILE_BILLING
 #   AZURE_PUBLISH_PROFILE_UI
+#   AZURE_PUBLISH_PROFILE_FN_CLAIMANTS
 name: Deploy Azure App Service
 
 # Auto-deploy only from main (or Run workflow). SP01.01.00.00 pushes do not update App Service.
@@ -22,7 +23,9 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Restore, build, test
         run: |
@@ -37,6 +40,7 @@ jobs:
           dotnet publish Policies.Api/Policies.Api.csproj -c Release -o artifacts/policies
           dotnet publish Billing.Api/Billing.Api.csproj -c Release -o artifacts/billing
           dotnet publish Insurance.UI.BlazorWasm/Insurance.UI.BlazorWasm.csproj -c Release -o artifacts/ui
+          dotnet publish ClaimantCreated/ClaimantCreated.csproj -c Release -o artifacts/fn-claimants
 
       - name: Deploy claims
         uses: azure/webapps-deploy@v3
@@ -72,3 +76,10 @@ jobs:
           app-name: pk-ins-ui
           publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_UI }}
           package: artifacts/ui
+
+      - name: Deploy ClaimantCreated function
+        uses: Azure/functions-action@v1
+        with:
+          app-name: pk-ins-fn-claimants
+          package: artifacts/fn-claimants
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_FN_CLAIMANTS }}
