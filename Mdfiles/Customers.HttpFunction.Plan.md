@@ -203,10 +203,11 @@ Portal + Visual Studio steps are in **section 7**.
 
 | Key | Local | Azure App Setting (pk-ins-bff) |
 |---|---|---|
+| `Functions:Enabled` | `true` in Development | `Functions__Enabled` = `true` or `false` |
 | `Functions:ClaimantCreatedUrl` | `http://localhost:7058/api/ClaimantCreated` | `https://pk-ins-fn-claimants-dxeahqbjg0fjfwhn.southindia-01.azurewebsites.net/api/ClaimantCreated` |
 | `Functions:HostKey` | empty or user-secrets | Function **default** key (not `_master`). **Not git.** |
 
-Azure names: `Functions__ClaimantCreatedUrl`, `Functions__HostKey`. App settings **override** `appsettings.Production.json`. `HostKey` in json stays `""`.
+Azure names: `Functions__Enabled`, `Functions__ClaimantCreatedUrl`, `Functions__HostKey`. App settings **override** `appsettings.Production.json`. `HostKey` in json stays `""`. If `Enabled` is `false`, Save still works; the Function is not called.
 
 Always copy **Overview → Default domain**. Unique-hostname stamps change (`dscaholbg0ftwfn` was wrong; live stamp is **`dxeahqbjg0fjfwhn`**). A mismatched URL saves the claimant but writes **no** `FunctionClaimantLog` row.
 
