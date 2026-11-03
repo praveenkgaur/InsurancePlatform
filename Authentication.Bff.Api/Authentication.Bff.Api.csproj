@@ -20,6 +20,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\Claims.Api\Services\ClaimsService.cs" Link="Agent\InProcess\ClaimsService.cs" />
+    <Compile Include="..\Claims.Api\Services\ClaimantCreatedClient.cs" Link="Agent\InProcess\ClaimantCreatedClient.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+    <Content Update="appsettings.*.local.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
 </Project>

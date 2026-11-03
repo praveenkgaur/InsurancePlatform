@@ -15,18 +15,93 @@
     <div class="alert @(saved ? "alert-success" : "alert-warning")">@message</div>
 }
 
-<div class="row g-2 mb-4" style="max-width: 720px;">
-    <div class="col-md-4">
-        <input class="form-control" placeholder="Full name" @bind="form.FullName" />
-    </div>
-    <div class="col-md-4">
-        <input class="form-control" placeholder="Email" @bind="form.Email" />
-    </div>
-    <div class="col-md-3">
-        <input class="form-control" placeholder="Phone" @bind="form.Phone" />
-    </div>
-    <div class="col-md-auto">
-        <button class="btn btn-primary" @onclick="Save" disabled="@busy">Save claimant</button>
+<div class="card mb-4" style="max-width: 960px;">
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-4">
+                <label class="form-label">First name</label>
+                <input class="form-control" @bind="form.FirstName" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Last name</label>
+                <input class="form-control" @bind="form.LastName" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Full name (optional)</label>
+                <input class="form-control" @bind="form.FullName" placeholder="Filled from first + last if empty" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Date of birth</label>
+                <input class="form-control" type="date" @bind="form.DateOfBirth" @bind:format="yyyy-MM-dd" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Gender</label>
+                <select class="form-select" @bind="form.Gender">
+                    <option value="">Select</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Email</label>
+                <input class="form-control" @bind="form.Email" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Phone</label>
+                <input class="form-control" @bind="form.Phone" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Alternate phone</label>
+                <input class="form-control" @bind="form.AlternatePhone" />
+            </div>
+            <div class="col-md-8">
+                <label class="form-label">Address line 1</label>
+                <input class="form-control" @bind="form.AddressLine1" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Address line 2</label>
+                <input class="form-control" @bind="form.AddressLine2" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">City</label>
+                <input class="form-control" @bind="form.City" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">State</label>
+                <input class="form-control" @bind="form.StateName" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">PIN</label>
+                <input class="form-control" @bind="form.PinCode" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Country</label>
+                <input class="form-control" @bind="form.Country" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">ID type</label>
+                <select class="form-select" @bind="form.IdType">
+                    <option value="">Select</option>
+                    <option value="Aadhaar">Aadhaar</option>
+                    <option value="PAN">PAN</option>
+                    <option value="Passport">Passport</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">ID number</label>
+                <input class="form-control" @bind="form.IdNumber" />
+            </div>
+            <div class="col-12">
+                <label class="form-label">Notes</label>
+                <input class="form-control" @bind="form.Notes" />
+            </div>
+            <div class="col-12">
+                <button class="btn btn-primary" @onclick="Save" disabled="@busy">Save claimant</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -48,6 +123,8 @@ else
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone</th>
+                <th>City</th>
+                <th>PIN</th>
             </tr>
         </thead>
         <tbody>
@@ -58,6 +135,8 @@ else
                     <td>@row.FullName</td>
                     <td>@row.Email</td>
                     <td>@row.Phone</td>
+                    <td>@row.City</td>
+                    <td>@row.PinCode</td>
                 </tr>
             }
         </tbody>
@@ -79,9 +158,15 @@ else
     {
         message = null;
         saved = false;
-        if (string.IsNullOrWhiteSpace(form.FullName))
+        form.EnsureFullName();
+        if (string.IsNullOrWhiteSpace(form.FirstName) || string.IsNullOrWhiteSpace(form.LastName))
         {
-            message = "Full name is required.";
+            message = "First name and last name are required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(form.AddressLine1) || string.IsNullOrWhiteSpace(form.City))
+        {
+            message = "Address line 1 and city are required.";
             return;
         }
 
@@ -90,7 +175,7 @@ else
         busy = false;
         if (!ok)
         {
-            message = string.IsNullOrWhiteSpace(error) ? "Save failed." : error;
+            message = string.IsNullOrWhiteSpace(error) ? "Save failed. Run Sql/007_ClaimantsExtended.sql on DemoDataBase if columns are missing." : error;
             return;
         }
 

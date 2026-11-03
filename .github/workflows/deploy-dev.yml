@@ -14,7 +14,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Restore
         run: dotnet restore InsurancePlatform.sln
@@ -33,6 +35,7 @@ jobs:
           dotnet publish Policies.Api/Policies.Api.csproj -c Release -o artifacts/policies
           dotnet publish Billing.Api/Billing.Api.csproj -c Release -o artifacts/billing
           dotnet publish Insurance.UI.BlazorWasm/Insurance.UI.BlazorWasm.csproj -c Release -o artifacts/ui
+          dotnet publish ClaimantCreated/ClaimantCreated.csproj -c Release -o artifacts/fn-claimants
 
       - name: Upload DEV artifact
         uses: actions/upload-artifact@v4

@@ -24,8 +24,9 @@ public sealed class ClaimantsController : ControllerBase
     [Authorize(Policy = PermissionKeys.ClaimsView)]
     public async Task<ActionResult<InsuranceClaimantDto>> Create([FromBody] CreateClaimantRequest request)
     {
+        request.EnsureFullName();
         if (string.IsNullOrWhiteSpace(request.FullName))
-            return BadRequest(new ApiMessage { Message = "Full name is required." });
+            return BadRequest(new ApiMessage { Message = "First name and last name (or full name) are required." });
 
         var created = await _claims.CreateClaimantAsync(request);
         return Ok(created);

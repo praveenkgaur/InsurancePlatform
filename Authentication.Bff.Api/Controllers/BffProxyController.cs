@@ -19,7 +19,6 @@ public sealed class BffProxyController : ControllerBase
     private readonly NotificationPublisher _publisher;
     private readonly ClaimsService _claims;
     private readonly SqlCommandExecutor _sql;
-    private readonly IHostEnvironment _env;
 
     public BffProxyController(
         LoginService login,
@@ -27,8 +26,7 @@ public sealed class BffProxyController : ControllerBase
         IConfiguration config,
         NotificationPublisher publisher,
         ClaimsService claims,
-        SqlCommandExecutor sql,
-        IHostEnvironment env)
+        SqlCommandExecutor sql)
     {
         _login = login;
         _http = http;
@@ -36,7 +34,6 @@ public sealed class BffProxyController : ControllerBase
         _publisher = publisher;
         _claims = claims;
         _sql = sql;
-        _env = env;
     }
 
     [HttpGet("{**path}")]
@@ -52,6 +49,23 @@ public sealed class BffProxyController : ControllerBase
             return Unauthorized(new { message = "Session found but JWT could not be created. Sign out and sign in again." });
 
         Request.EnableBuffering();
+        byte[] bodyBytes = [];
+        if (Request.ContentLength is > 0 || !string.IsNullOrEmpty(Request.ContentType))
+        {
+            using var copy = new MemoryStream();
+            await Request.Body.CopyToAsync(copy);
+            bodyBytes = copy.ToArray();
+            Request.Body.Position = 0;
+        }
+
+        // UseGateway false: BFF already has SQL + ClaimantCreated hook (App settings on pk-ins-bff).
+        if (!_config.GetValue("UseGateway", false))
+        {
+            var local = await TryLocalAsync(path);
+            if (local is not null)
+                return local;
+        }
+
         var target = $"{ResolveDownstream(path)}{Request.QueryString}";
         var method = new HttpMethod(Request.Method);
         using var message = new HttpRequestMessage(method, target);
@@ -64,11 +78,12 @@ public sealed class BffProxyController : ControllerBase
                 message.Headers.TryAddWithoutValidation("Ocp-Apim-Subscription-Key", apimKey);
         }
 
-        if (Request.ContentLength is > 0 || !string.IsNullOrEmpty(Request.ContentType))
+        if (bodyBytes.Length > 0 || !string.IsNullOrEmpty(Request.ContentType))
         {
-            message.Content = new StreamContent(Request.Body);
+            var content = new ByteArrayContent(bodyBytes);
             if (!string.IsNullOrEmpty(Request.ContentType))
-                message.Content.Headers.TryAddWithoutValidation("Content-Type", Request.ContentType);
+                content.Headers.TryAddWithoutValidation("Content-Type", Request.ContentType);
+            message.Content = content;
         }
 
         var client = _http.CreateClient("Gateway");
@@ -79,13 +94,10 @@ public sealed class BffProxyController : ControllerBase
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            if (_env.IsDevelopment())
-            {
-                Request.Body.Position = 0;
-                var local = await TryLocalAsync(path);
-                if (local is not null)
-                    return local;
-            }
+            Request.Body.Position = 0;
+            var local = await TryLocalAsync(path);
+            if (local is not null)
+                return local;
             return StatusCode(502, new { message = $"Downstream unreachable ({target}). {ex.Message}" });
         }
 

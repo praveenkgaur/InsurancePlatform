@@ -177,7 +177,7 @@ Repo: `praveenkgaur/InsurancePlatform`
 Workflow: `.github/workflows/deploy-azure.yml`  
 Branch: **`SP01.01.00.00`** (also `main`).
 
-Push publishes **five separate zips** (BFF, claims, policies, billing, UI). UI `wwwroot` is **not** copied into the BFF.
+Push publishes **six** zips (BFF, claims, policies, billing, UI, ClaimantCreated Function). UI `wwwroot` is **not** copied into the BFF.
 
 **Repository secrets** (Settings → Secrets and variables → Actions):
 
@@ -188,8 +188,9 @@ Push publishes **five separate zips** (BFF, claims, policies, billing, UI). UI `
 | `AZURE_PUBLISH_PROFILE_POLICIES` | `pk-ins-policies` |
 | `AZURE_PUBLISH_PROFILE_BILLING` | `pk-ins-billing` |
 | `AZURE_PUBLISH_PROFILE_UI` | `pk-ins-ui` |
+| `AZURE_PUBLISH_PROFILE_FN_CLAIMANTS` | `pk-ins-fn-claimants` |
 
-Download: each Web App → Overview → **Download publish profile** (enable **SCM Basic Auth** first).
+Download: each Web App or Function App → Overview → **Download publish profile** / **Get publish profile** (enable **SCM Basic Auth** first). Do not commit the `.PublishSettings` file.
 
 ---
 
