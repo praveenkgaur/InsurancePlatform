@@ -1,6 +1,6 @@
 # Plan: Claimant page (extra fields) + Azure Function (HTTP trigger)
 
-Status: **plan only** — not implemented until you say go.
+Status: **implemented.** HTTP Function `ClaimantCreated` on `pk-ins-fn-claimants`; BFF hooks after save; rows in `dbo.FunctionClaimantLog`.
 
 **Change from the earlier draft:** no new `Customers.Api` for v1. The Function runs when a **claimant** is saved (existing Claims + BFF path). A separate customer microservice can come later.
 
@@ -182,13 +182,16 @@ Do **not** include `idNumber`.
 | Item | Value |
 |---|---|
 | Function App name | `pk-ins-fn-claimants` |
-| Plan | **Consumption (Y1)** — not F1 `plan-ins-dev` |
+| Plan | **Consumption (Y1)** — `ASP-pkinsurancedev-bb0a`, not F1 `plan-ins-dev` |
 | Function name | `ClaimantCreated` |
-| Method | **POST** |
+| Method | **GET** (hint) and **POST** |
 | Route | `/api/ClaimantCreated` |
 | Authorization | **Function** (key required) |
 | Region | South India |
 | Resource group | `pk-insurance-dev` |
+| Default domain (live) | `https://pk-ins-fn-claimants-dxeahqbjg0fjfwhn.southindia-01.azurewebsites.net` |
+| Storage (host) | `pkinsfnstore01` → App setting `AzureWebJobsStorage` |
+| SQL log | `dbo.FunctionClaimantLog` (`Sql/008_FunctionClaimantLog.sql`) |
 
 Portal + Visual Studio steps are in **section 7**.
 
@@ -198,14 +201,16 @@ Portal + Visual Studio steps are in **section 7**.
 
 ### BFF and Claims.Api (same keys)
 
-| Key | Local | Azure App Setting |
+| Key | Local | Azure App Setting (pk-ins-bff) |
 |---|---|---|
-| `Functions:ClaimantCreatedUrl` | `http://localhost:7071/api/ClaimantCreated` | `https://pk-ins-fn-claimants.azurewebsites.net/api/ClaimantCreated` |
-| `Functions:HostKey` | empty or user-secrets | Function **function key** |
+| `Functions:ClaimantCreatedUrl` | `http://localhost:7058/api/ClaimantCreated` | `https://pk-ins-fn-claimants-dxeahqbjg0fjfwhn.southindia-01.azurewebsites.net/api/ClaimantCreated` |
+| `Functions:HostKey` | empty or user-secrets | Function **default** key (not `_master`). **Not git.** |
 
-Azure names: `Functions__ClaimantCreatedUrl`, `Functions__HostKey`.
+Azure names: `Functions__ClaimantCreatedUrl`, `Functions__HostKey`. App settings **override** `appsettings.Production.json`. `HostKey` in json stays `""`.
 
-Set on **pk-ins-bff** (in-process claimant create) **and** **pk-ins-claims** (if the request is proxied to Claims.Api).
+Always copy **Overview → Default domain**. Unique-hostname stamps change (`dscaholbg0ftwfn` was wrong; live stamp is **`dxeahqbjg0fjfwhn`**). A mismatched URL saves the claimant but writes **no** `FunctionClaimantLog` row.
+
+Set on **pk-ins-bff** (in-process `CreateClaimantAsync`). Optional on **pk-ins-claims** if you POST claimants to Claims.Api directly.
 
 UI Production json: **no** Function keys. Only `BffBaseUrl`.
 
@@ -219,9 +224,10 @@ Resource group: **`pk-insurance-dev`**. Region: **South India**. Do **not** put 
 
 1. Portal → **Create** → **Storage account**.
 2. Resource group: `pk-insurance-dev`.
-3. Name: e.g. `pkinsfnclaimants` (globally unique, 3–24 lowercase).
-4. Region: South India. Performance: Standard. Redundancy: LRS.
+3. Name: live account is **`pkinsfnstore01`** (globally unique, 3–24 lowercase).
+4. Region: South India. Performance: **Standard**. Redundancy: **LRS** (GRS also works, costs more).
 5. Review + create. Wait until **Go to resource**.
+6. **Access keys** → **key1** → **Connection string** → Function App App setting **`AzureWebJobsStorage`**. Without this the host is Unhealthy (`Unable to create client for AzureWebJobsStorage`) and HTTP will not run. This is **not** the SQL string.
 
 ### 7.2 Function App
 
@@ -234,9 +240,9 @@ Resource group: **`pk-insurance-dev`**. Region: **South India**. Do **not** put 
 7. **Region:** South India.
 8. **Storage:** the account from 7.1.
 9. Review + create.
-10. Overview → copy **Default domain**  
-    `https://pk-ins-fn-claimants.azurewebsites.net`  
-    (if Azure adds a stamp, copy the **full** hostname — same lesson as UI NXDOMAIN).
+10. Overview → copy **Default domain** (live):  
+    `https://pk-ins-fn-claimants-dxeahqbjg0fjfwhn.southindia-01.azurewebsites.net`  
+    Do **not** use the short `pk-ins-fn-claimants.azurewebsites.net` if Azure issued a stamp.
 
 ### 7.3 Function key (after first successful publish)
 
@@ -246,24 +252,18 @@ Resource group: **`pk-insurance-dev`**. Region: **South India**. Do **not** put 
 
 ### 7.4 Create the HTTP function yourself (Visual Studio)
 
-There is **no** `Insurance.Functions` project in git. You add it.
+Repo project: **`ClaimantCreated`** (net8 isolated). In the solution.
 
-1. Visual Studio → **File → New → Project**.
-2. Search **Azure Functions** → **Azure Functions** (C#).
-3. Name: `Insurance.Functions`. Location: your `insuranceplateform` folder (do not add to git until you want to).
-4. **Functions worker:** .NET isolated. **Function:** **Http trigger**. **Authorization level:** **Function**.
-5. Name the function **`ClaimantCreated`**.
-6. In `Run`, read the JSON body (fields in section 4). Log `claimantId` and `fullName`. Return HTTP 200 `{ "ok": true }`. Do not write SQL. Do not put the Function key in the UI.
-7. F5 locally → URL like `http://localhost:7071/api/ClaimantCreated`.
-8. Test with Postman/curl POST that JSON (no key locally if you used Anonymous; with `x-functions-key` if Function level).
-9. Right-click the Function project → **Publish** → **Azure Function App** → select `pk-ins-fn-claimants` from 7.2 → **Publish**.
+1. F5 → `http://localhost:7058/api/ClaimantCreated`.
+2. Publish profile: **`pk-ins-fn-claimants - Zip Deploy`** (not `ci.yml`). Enable **SCM Basic Auth** on the Function App to download a publish profile.
+3. GitHub CD: `deploy-azure.yml` on **`main` only** → secret `AZURE_PUBLISH_PROFILE_FN_CLAIMANTS`. Do not put Function keys or `local.settings.json` in git.
 
-First publish was done from Visual Studio. GitHub CD: `deploy-azure.yml` publishes `ClaimantCreated` to `pk-ins-fn-claimants` using secret `AZURE_PUBLISH_PROFILE_FN_CLAIMANTS`. CI (`ci.yml`) restores/builds the solution (needs .NET 8 + .NET 10). Do not put Function keys in git.
+Function App **Connection strings**: name **`DemoDataBase`**, type **SQLAzure**, same value as BFF. Required for `FunctionClaimantLog`. Run `Sql/008_FunctionClaimantLog.sql` on Azure SQL.
 
 ### 7.5 App Settings on BFF (and Claims)
 
 1. **pk-ins-bff** → **Environment variables** → **App settings** → **Add**:
-   - `Functions__ClaimantCreatedUrl` = `https://<function-default-host>/api/ClaimantCreated`
+   - `Functions__ClaimantCreatedUrl` = `https://pk-ins-fn-claimants-dxeahqbjg0fjfwhn.southindia-01.azurewebsites.net/api/ClaimantCreated`
    - `Functions__HostKey` = key from 7.3
 2. **Apply** (restart).
 3. Repeat on **pk-ins-claims** if you use downstream Claims.Api for POST claimants.
@@ -274,14 +274,12 @@ Leave default. The caller is **server-side** (BFF/Claims), not the browser. Do n
 
 ### 7.7 Test on Azure
 
-1. Run `Sql/007` on Azure `DemoDataBase`.
-2. Deploy **BFF + UI + Claims** with the extra claimant columns (GitHub `main` or VS Publish).
-3. Open the **working** UI host `/claimants` (not a NXDOMAIN stamp).
-4. Sign in (password or Microsoft).
-5. Save a claimant with address fields.
-6. Function App → **Invocations** / **Log stream**: one POST, 200, ClaimantId in the log.
-7. SQL: new row with FirstName, City, etc.
-8. Stop the Function App, save another claimant → **row still appears**; BFF log “hook failed”. Start Function again.
+1. Run `Sql/007` and `Sql/008` on Azure `DemoDataBase`.
+2. Portal **Test/Run** POST → `{"ok":true,"claimantId":…,"logged":true}` (proves Function + SQL).
+3. Open UI Default domain `/claimants/new` (live UI stamp `pk-ins-ui-a7aebdgfsdecmah…`).
+4. Save a claimant. Chrome Network: only BFF `/api/claimants`, **no** Function host.
+5. SQL: `SELECT TOP 20 * FROM dbo.FunctionClaimantLog ORDER BY LogId DESC;` — new `ClaimantId` must match.
+6. If UI save has no log row but Test/Run does: BFF URL stamp is wrong (must match Function **Default domain**).
 
 ### 7.8 What “deployed” looks like
 
@@ -298,7 +296,7 @@ Leave default. The caller is **server-side** (BFF/Claims), not the browser. Do n
 ## 8. Local demo order
 
 1. Run `Sql/007_ClaimantsExtended.sql` on LocalDB `DemoDataBase`.
-2. `func start` in `Insurance.Functions`.
+2. F5 `ClaimantCreated` (`http://localhost:7058/api/ClaimantCreated`).
 3. `dotnet run` BFF (`5281`) + UI (`5280`). Claims.Api optional if BFF uses in-process `ClaimsService`.
 4. Login → **Claimants** → fill new fields → Save.
 5. Function terminal shows ClaimantId.
@@ -327,6 +325,8 @@ Do not create the Function App until step 2 works on localhost.
 |---|---|
 | Function cold start | Claimant saved; hook skipped |
 | Wrong HostKey | 401; claimant saved; fix App Setting |
+| Wrong Function URL stamp | Claimant saved; no `FunctionClaimantLog` row; BFF log `hook failed` |
+| Missing `AzureWebJobsStorage` | Function Unhealthy; Test/Run may fail; add `pkinsfnstore01` connection string |
 | ID number on form | Stored in SQL; **omit from Function payload v1** |
 | User not logged in | BFF 401; Function never called |
 | UI NXDOMAIN | Unrelated; fix UI hostname first (recreate Web App) |

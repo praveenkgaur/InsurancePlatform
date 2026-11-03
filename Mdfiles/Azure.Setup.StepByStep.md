@@ -175,9 +175,9 @@ Use a **normal** Chrome window. Incognito often blocks the third-party BFF cooki
 
 Repo: `praveenkgaur/InsurancePlatform`  
 Workflow: `.github/workflows/deploy-azure.yml`  
-Branch: **`SP01.01.00.00`** (also `main`).
+Branch: **`main` only** (`workflow_dispatch` or push). **`SP01.01.00.00` does not deploy Azure.**
 
-Push publishes **six** zips (BFF, claims, policies, billing, UI, ClaimantCreated Function). UI `wwwroot` is **not** copied into the BFF.
+Push to `main` publishes **six** zips (BFF, claims, policies, billing, UI, ClaimantCreated Function). UI `wwwroot` is **not** copied into the BFF.
 
 **Repository secrets** (Settings → Secrets and variables → Actions):
 
@@ -204,6 +204,11 @@ Download: each Web App or Function App → Overview → **Download publish profi
 | Claims Swagger | `https://pk-ins-claims-gth7cvg6etb8hqa0.southindia-01.azurewebsites.net/swagger` |
 | Policies Swagger | `https://pk-ins-policies-cqexgrdtgwbgc9cr.southindia-01.azurewebsites.net/swagger` |
 | Billing Swagger | `https://pk-ins-billing-g5ecgqcmhmfaf7dr.southindia-01.azurewebsites.net/swagger` |
+| Function (HTTP) | `https://pk-ins-fn-claimants-dxeahqbjg0fjfwhn.southindia-01.azurewebsites.net/api/ClaimantCreated` |
+
+BFF App setting `Functions__ClaimantCreatedUrl` must be that Function URL (full unique hostname). `Functions__HostKey` is Portal-only.
+
+Function App: `AzureWebJobsStorage` = storage **`pkinsfnstore01`** connection string; Connection string **`DemoDataBase`** (SQLAzure) same as BFF. SQL: `Sql/008_FunctionClaimantLog.sql`.
 
 `/health` needs **no token**. `"ok": true` on all three downstream rows means the 502 hostnames are correct. Claims **data** in Swagger still needs JWT (the BFF sends that; the browser does not).
 
