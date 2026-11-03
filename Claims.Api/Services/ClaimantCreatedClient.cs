@@ -19,9 +19,15 @@ public sealed class ClaimantCreatedClient
 
     public async Task NotifyAsync(InsuranceClaimantDto dto)
     {
+        if (!_config.GetValue("Functions:Enabled", false))
+            return;
+
         var url = _config["Functions:ClaimantCreatedUrl"]?.Trim();
         if (string.IsNullOrWhiteSpace(url))
+        {
+            _log.LogWarning("ClaimantCreated hook skipped: Functions:Enabled is true but ClaimantCreatedUrl is empty.");
             return;
+        }
 
         try
         {
