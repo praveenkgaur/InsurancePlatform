@@ -9,6 +9,7 @@ public static class ServiceRegistration
     {
         var connection = configuration.GetConnectionString("DemoDataBase")
             ?? "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=DemoDataBase;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;";
+        services.AddSingleton<IdempotencyStore>();
         services.AddSingleton(new SqlCommandExecutor(connection));
         services.AddSingleton(new SqlAdapterNotificationStore(connection));
         services.AddSingleton(new AgentToolLogStore(connection));

@@ -119,6 +119,12 @@ SQL server **`pk-ins-demodb`** → Networking: **Selected networks**, your clien
 | `SignalR__UseAzure` | `false` |
 | `Agent__UseSemanticKernel` | `false` |
 | `Agent__UsePythonAgents` | `false` |
+| `Resilience__Retry__Enabled` | `true` |
+| `Resilience__CircuitBreaker__Enabled` | `true` |
+| `Resilience__RateLimit__Enabled` | `true` |
+| `Resilience__Idempotency__Enabled` | `true` |
+
+Retry / circuit / rate limit / idempotency code is in the BFF. Flags do nothing until this BFF is **published**. Rate limit + idempotency on **pk-ins-claims** are unused (UI → BFF only). Nested limits stay in json; do not put `Functions__HostKey` in git. SQL: `Sql/009_Idempotency.sql` on `DemoDataBase`. Details: `Mdfiles/Resilience.CircuitBreaker.Retry.RateLimit.Idempotency.Plan.md`.
 
 **Apply** → **Save**.
 
