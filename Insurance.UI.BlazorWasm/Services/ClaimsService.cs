@@ -50,7 +50,12 @@ public sealed class ClaimsService
 
     public async Task<(bool Ok, string Error)> CreateClaimantAsync(CreateClaimantRequest request)
     {
-        var response = await _http.PostAsJsonAsync("api/claimants", request);
+        using var message = new HttpRequestMessage(HttpMethod.Post, "api/claimants")
+        {
+            Content = JsonContent.Create(request)
+        };
+        message.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString("N"));
+        var response = await _http.SendAsync(message);
         return response.IsSuccessStatusCode
             ? (true, "")
             : (false, await response.Content.ReadAsStringAsync());

@@ -25,8 +25,11 @@ builder.Services.AddScoped<LoginService>();
 builder.Services.AddScoped<UserAdminService>();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<NotificationPublisher>();
-builder.Services.AddHttpClient<Claims.Api.Services.ClaimantCreatedClient>(client =>
-    client.Timeout = TimeSpan.FromSeconds(3));
+//builder.Services.AddHttpClient<Claims.Api.Services.ClaimantCreatedClient>(client => client.Timeout = TimeSpan.FromSeconds(3));
+
+builder.Services.AddHttpClient<Claims.Api.Services.ClaimantCreatedClient>(client => client.Timeout = TimeSpan.FromSeconds(10)).AddInsuranceHttpResilience(builder.Configuration, TimeSpan.FromSeconds(10));
+
+
 builder.Services.AddScoped<Claims.Api.Services.ClaimsService>();
 builder.Services.AddAuthorization();
 
@@ -128,15 +131,22 @@ builder.Services
 
 
 
-builder.Services.AddHttpClient("Gateway", client =>
-    client.Timeout = TimeSpan.FromSeconds(builder.Environment.IsDevelopment() ? 3 : 30));
-builder.Services.AddHttpClient("AgentClaims");
-builder.Services.AddHttpClient("AgentPolicies");
-builder.Services.AddHttpClient("AgentPython");
+//builder.Services.AddHttpClient("Gateway", client => client.Timeout = TimeSpan.FromSeconds(builder.Environment.IsDevelopment() ? 3 : 30));
+//builder.Services.AddHttpClient("AgentClaims");
+//builder.Services.AddHttpClient("AgentPolicies");
+//builder.Services.AddHttpClient("AgentPython");
+
+var gatewayTimeout = TimeSpan.FromSeconds(builder.Environment.IsDevelopment() ? 8 : 30);
+builder.Services.AddHttpClient("Gateway", client => client.Timeout = gatewayTimeout).AddInsuranceHttpResilience(builder.Configuration, gatewayTimeout);
+builder.Services.AddHttpClient("AgentClaims").AddInsuranceHttpResilience(builder.Configuration, TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient("AgentPolicies").AddInsuranceHttpResilience(builder.Configuration, TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient("AgentPython").AddInsuranceHttpResilience(builder.Configuration, TimeSpan.FromSeconds(15));
+
 builder.Services.AddSingleton<Authentication.Bff.Api.Agent.RecordGuardrails>();
 builder.Services.AddScoped<Authentication.Bff.Api.Agent.AgentChatService>();
 
 builder.Services.AddControllers();
+builder.Services.AddInsuranceRateLimiter(builder.Configuration);
 builder.Services.AddInsuranceSwagger("Insurance BFF");
 var uiOrigin = (builder.Configuration["UiOrigin"] ?? "http://localhost:5280").Trim().TrimEnd('/');
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
@@ -150,7 +160,9 @@ app.UseBffCorsHeaders(uiOrigin);
 app.UseCors();
 app.UseInsuranceSwagger();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
+app.UseMiddleware<IdempotencyMiddleware>();
 app.MapControllers();
 app.MapHub<InsuranceClaimHub>("/hubs/notifications").RequireAuthorization();
 app.Run();
